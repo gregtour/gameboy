@@ -224,7 +224,7 @@ void LCDDrawLineMono()
 
                 // y flip
                 u8 py = R_LY - OY + 16;
-                if (OF & OBJ_FLIP_Y) 
+                if (OF & OBJ_FLIP_Y)
                     py = (R_LCDC & LCDC_OBJ_SIZE ? 15 : 7) - py;
 
                 // fetch the tile
@@ -255,7 +255,7 @@ void LCDDrawLineMono()
                     {
                     c = (t1 & 0x1) | ((t2 & 0x1) << 1);
                     // check transparency / sprite overlap / background overlap
-                    if (c && OX <= SX[X] && 
+                    if (c && OX <= SX[X] &&
                         !((OF & OBJ_PRIORITY) && ((gb_fb[R_LY][X] & 0x3) && SX[X] == 0xFE)))
 //                    if (c && OX <= SX[X] && !(OF & OBJ_PRIORITY && gb_fb[R_LY][X] & 0x3))
                         {
@@ -285,7 +285,7 @@ void LCDDrawLineColor()
     u8  count = 0;
 
     //if (R_LCDC & LCDC_BG_ENABLE)
-    if (true)
+    if (1)
         {
         BY = R_LY + R_SCY;
         bg_line = (R_LCDC & LCDC_BG_MAP) ? VRAM_BMAP_2 : VRAM_BMAP_1;
@@ -498,7 +498,7 @@ void LCDDrawLineColor()
 
                 // y flip
                 u8 py = R_LY - OY + 16;
-                if (OF & OBJ_FLIP_Y) 
+                if (OF & OBJ_FLIP_Y)
                     py = (R_LCDC & LCDC_OBJ_SIZE ? 15 : 7) - py;
 
                 // fetch the tile
@@ -531,8 +531,8 @@ void LCDDrawLineColor()
                     {
                     c = (t1 & 0x1) | ((t2 & 0x1) << 1);
                     // check transparency / bg overlap / master bg priority / sprite priority and bg priority
-                    if (c && 
-                        ((SX[X] & 0x7) == 0 || 
+                    if (c &&
+                        ((SX[X] & 0x7) == 0 ||
                             (R_LCDC & 0x1) == 0 ||
                                 ((OF & OBJ_PRIORITY) == 0 && (SX[X] & BMAP_PRIORITY) == 0)))
                         {
