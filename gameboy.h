@@ -2,6 +2,9 @@
  * gameboy.h * 
 *************/
 
+#define SDL_1_2     0
+#define SDL_2_0     1
+
 // types
 typedef unsigned int u32;
 typedef unsigned short u16;
@@ -26,6 +29,12 @@ void SetFrameSkip(u8 f);
 extern u8 gb_framecount;
 extern u8 gb_frameskip;
 extern u8 cgb_enable;
+
+// bios
+// #define DMG_BIOS_ENABLE    // optional logo
+#ifdef DMG_BIOS_ENABLE
+extern u8  DMG_BIOS[0x100];
+#endif
 
 // internal functions
 void UpdateP1();
@@ -61,6 +70,12 @@ void LCDDrawLineColor();
 #define VRAM_SIZE       0x4000
 #define HRAM_SIZE       0x0100
 #define OAM_SIZE        0x00A0
+
+// MEMORY ///////////////////////////
+extern u8 WRAM[WRAM_SIZE];
+extern u8 VRAM[VRAM_SIZE];
+extern u8 HRAM[HRAM_SIZE];
+extern u8 OAM[OAM_SIZE];
 
 // flags: ZERO, NEGATIVE OP (1: SUB, 0: ADD), HALF CARRY, CARRY
 #define ZF_FLAG         0x0080
@@ -127,6 +142,14 @@ extern const u32 TAC_CYCLES[4];
 extern u8 gb_fb[LCD_HEIGHT][LCD_WIDTH];
 extern u16 cgb_fb[LCD_HEIGHT][LCD_WIDTH];
 
+// PALETTES
+extern u8 BGP[4];
+extern u8 OBJP[8];
+
+// CGB PALETTES
+extern u16 BCPD[4*8];
+extern u16 OCPD[4*8];
+
 // LCD modes
 #define LCD_HBLANK          0x0
 #define LCD_VBLANK          0x1
@@ -191,91 +214,3 @@ extern u16 cgb_fb[LCD_HEIGHT][LCD_WIDTH];
 #define PAL_AUTO_INCREMENT  0x80
 #define PAL_INDEX           0x3F
 #define PAL_CONTROL_BITS    (PAL_AUTO_INCREMENT | PAL_INDEX)
-
-
-// Instruction Mnuemonics
-/*
-const char* OP_MN[] = 
-    { // 0x0
-    "NOP",              "LD BC, imm",       "LD (BC), A",       "INC BC",
-    "INC B",            "DEC B",            "LD B, imm",        "RLCA",
-    "LD (imm), SP",     "ADD HL, BC",       "LD A, (BC)",       "DEC BC",
-    "INC C",            "DEC C",            "LD C, imm",        "RRCA",
-    // 0x1
-    "STOP",             "LD DE, imm",       "LD (DE), A",       "INC DE",
-    "INC D",            "DEC D",            "LD D, imm",        "RLA",
-    "JR imm",           "ADD HL, DE",       "LD A, (DE)",       "DEC DE",
-    "INC E",            "DEC E",            "LD E, imm",        "RRA",
-    // 0x2
-    "JP NZ, imm",       "LD HL, imm",       "LDI (HL), A",      "INC HL",
-    "INC H",            "DEC H",            "LD H, imm",        "DAA",
-    "JP Z, imm",        "ADD HL, HL",       "LDI A, (HL)",      "DEC HL",
-    "INC L",            "DEC L",            "LD L, imm",        "CPL",
-    // 0x3
-    "JP NC, imm",       "LD SP, imm",       "LDD (HL), A",      "INC SP",
-    "INC (HL)",         "DEC (HL)",         "LD (HL), imm",     "SCF",
-    "JP C, imm",        "ADD HL, SP",       "LDD A, (HL)",      "DEC SP",
-    "INC A",            "DEC A",            "LD A, imm",        "CCF",
-    // 0x4
-    "LD B, B",          "LD B, C",          "LD B, D",          "LD B, E",
-    "LD B, H",          "LD B, L",          "LD B, (HL)",       "LD B, A",
-    "LD C, B",          "LD C, C",          "LD C, D",          "LD C, E",
-    "LD C, H",          "LD C, L",          "LD C, (HL)",       "LD C, A",
-    // 0x5
-    "LD D, B",          "LD D, C",          "LD D, D",          "LD D, E",
-    "LD D, H",          "LD D, L",          "LD D, (HL)",       "LD D, A",
-    "LD E, B",          "LD E, C",          "LD E, D",          "LD E, E",
-    "LD E, H",          "LD E, L",          "LD E, (HL)",       "LD E, A",
-    // 0x6
-    "LD H, B",          "LD H, C",          "LD H, D",          "LD H, E",
-    "LD H, H",          "LD H, L",          "LD H, (HL)",       "LD H, A",
-    "LD L, B",          "LD L, C",          "LD L, D",          "LD L, E",
-    "LD L, H",          "LD L, L",          "LD L, (HL)",       "LD L, A",
-    // 0x7
-    "LD (HL), B",       "LD (HL), C",       "LD (HL), D",       "LD (HL), E",
-    "LD (HL), H",       "LD (HL), L",       "HALT",             "LD (HL), A",
-    "LD A, B",          "LD A, C",          "LD A, D",          "LD A, E",
-    "LD A, H",          "LD A, L",          "LD A, (HL)",       "LD A, A",
-    // 0x8
-    "ADD A, B",         "ADD A, C",         "ADD A, D",         "ADD A, E",
-    "ADD A, H",         "ADD A, L",         "ADD A, (HL)",      "ADD A, A",
-    "ADC A, B",         "ADC A, C",         "ADC A, D",         "ADC A, E",
-    "ADC A, H",         "ADC A, L",         "ADC A, (HL)",      "ADC A, A",
-    // 0x9
-    "SUB B",            "SUB C",            "SUB D",            "SUB E",
-    "SUB H",            "SUB L",            "SUB (HL)",         "SUB A",
-    "SBC A, B",         "SBC A, C",         "SBC A, D",         "SBC A, E",
-    "SBC A, H",         "SBC A, L",         "SBC A, (HL)",      "SBC A, A",
-    // 0xA
-    "AND B",            "AND C",            "AND D",            "AND E",
-    "AND H",            "AND L",            "AND (HL)",         "AND A",
-    "XOR B",            "XOR C",            "XOR D",            "XOR E",
-    "XOR H",            "XOR L",            "XOR (HL)",         "XOR A",
-    // 0xB
-    "OR B",             "OR C",             "OR D",             "OR E",
-    "OR H",             "OR L",             "OR (HL)",          "OR A",
-    "CP B",             "CP C",             "CP D",             "CP E",
-    "CP H",             "CP L",             "CP (HL)",          "CP A",
-    // 0xC
-    "RET NZ",           "POP BC",           "JP NZ, imm",       "JP imm",
-    "CALL NZ, imm",     "PUSH BC",          "ADD A, imm",       "RST 0x0000",
-    "RET Z",            "RET",              "JP Z, imm",        "CB INST",
-    "CALL Z, imm",      "CALL imm",         "ADC A, imm",       "RST 0x0008",
-    // 0xD
-    "RET NC",           "POP DE",           "JP NC, imm",       "illegal",
-    "CALL NC, imm",     "PUSH DE",          "SUB imm",          "RST 0x0010",
-    "RET C",            "RETI",             "JP C, imm",        "illegal",
-    "CALL C, imm",      "illegal",          "SBC A, imm",       "RST 0x0018",
-    // 0xE
-    "LD (0xFF00+imm), A","POP HL",          "LD (C), A",        "illegal",
-    "illegal",          "PUSH HL",          "AND imm",          "RST 0x0020",
-    "ADD SP, imm",      "JP (HL)",          "LD (imm), A",      "illegal",
-    "illegal",          "illegal",          "XOR imm",          "RST 0x0028",
-    // 0xF
-    "LD A, (0xFF00+imm)","POP AF",          "LD A, (C)",        "DI",
-    "illegal",          "PUSH AF",          "OR imm",           "RST 0x0030",
-    "LD HL, SP+/-imm",  "LD SP, HL",        "LD A, (imm)",      "EI",
-    "illegal",          "illegal",          "CP imm",           "RST 0x0038"
-    };
-*/
-

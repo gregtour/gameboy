@@ -5,7 +5,6 @@
  Credits: Greg Tourville
 */
 
-#include <string.h>      // memset()
 #include "gameboy.h"
 
 // CART /////////////////////////////
@@ -49,26 +48,6 @@ u16 NUM_ROM_BANKS[] =
 
 u8  NUM_RAM_BANKS[] = {0, 1, 1, 4, 16};
 
-u8  DMG_BIOS[0x100] =
-    {
-    0x31, 0xFE, 0xFF, 0xAF, 0x21, 0xFF, 0x9F, 0x32, 0xCB, 0x7C, 0x20, 0xFB, 0x21, 0x26, 0xFF, 0x0E,
-    0x11, 0x3E, 0x80, 0x32, 0xE2, 0x0C, 0x3E, 0xF3, 0xE2, 0x32, 0x3E, 0x77, 0x77, 0x3E, 0xFC, 0xE0,
-    0x47, 0x11, 0x04, 0x01, 0x21, 0x10, 0x80, 0x1A, 0xCD, 0x95, 0x00, 0xCD, 0x96, 0x00, 0x13, 0x7B,
-    0xFE, 0x34, 0x20, 0xF3, 0x11, 0xD8, 0x00, 0x06, 0x08, 0x1A, 0x13, 0x22, 0x23, 0x05, 0x20, 0xF9, 
-    0x3E, 0x19, 0xEA, 0x10, 0x99, 0x21, 0x2F, 0x99, 0x0E, 0x0C, 0x3D, 0x28, 0x08, 0x32, 0x0D, 0x20,
-    0xF9, 0x2E, 0x0F, 0x18, 0xF3, 0x67, 0x3E, 0x64, 0x57, 0xE0, 0x42, 0x3E, 0x91, 0xE0, 0x40, 0x04, 
-    0x1E, 0x02, 0x0E, 0x0C, 0xF0, 0x44, 0xFE, 0x90, 0x20, 0xFA, 0x0D, 0x20, 0xF7, 0x1D, 0x20, 0xF2, 
-    0x0E, 0x13, 0x24, 0x7C, 0x1E, 0x83, 0xFE, 0x62, 0x28, 0x06, 0x1E, 0xC1, 0xFE, 0x64, 0x20, 0x06, 
-    0x7B, 0xE2, 0x0C, 0x3E, 0x87, 0xE2, 0xF0, 0x42, 0x90, 0xE0, 0x42, 0x15, 0x20, 0xD2, 0x05, 0x20, 
-    0x4F, 0x16, 0x20, 0x18, 0xCB, 0x4F, 0x06, 0x04, 0xC5, 0xCB, 0x11, 0x17, 0xC1, 0xCB, 0x11, 0x17, 
-    0x05, 0x20, 0xF5, 0x22, 0x23, 0x22, 0x23, 0xC9, 0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B, 
-    0x03, 0x73, 0x00, 0x83, 0x00, 0x0C, 0x00, 0x0D, 0x00, 0x08, 0x11, 0x1F, 0x88, 0x89, 0x00, 0x0E, 
-    0xDC, 0xCC, 0x6E, 0xE6, 0xDD, 0xDD, 0xD9, 0x99, 0xBB, 0xBB, 0x67, 0x63, 0x6E, 0x0E, 0xEC, 0xCC, 
-    0xDD, 0xDC, 0x99, 0x9F, 0xBB, 0xB9, 0x33, 0x3E, 0x3C, 0x42, 0xB9, 0xA5, 0xB9, 0xA5, 0x42, 0x3C, 
-    0x21, 0x04, 0x01, 0x11, 0xA8, 0x00, 0x1A, 0x13, 0xBE, 0x20, 0xFE, 0x23, 0x7D, 0xFE, 0x34, 0x20, 
-    0xF5, 0x06, 0x19, 0x78, 0x86, 0x23, 0x05, 0x20, 0xFB, 0x86, 0x20, 0xFE, 0x3E, 0x01, 0xE0, 0x50
-    };
-
 // GB ///////////////////////////////
 u8 gb_bios_enable = 1;
 u8 gb_halt = 0;
@@ -93,7 +72,6 @@ u8  gb_fb[LCD_HEIGHT][LCD_WIDTH];
 u16 cgb_fb[LCD_HEIGHT][LCD_WIDTH];
 
 // char debug_msg[0x100];
-bool call;
 
 // MEMORY ///////////////////////////
 u8 WRAM[WRAM_SIZE];
@@ -149,10 +127,12 @@ u8 READ(u16 addr)
     switch ((addr >> 12) & 0xF)
         {
         case 0x0:
+#ifdef DMG_BIOS_ENABLE
             if (gb_bios_enable && addr < 0x100)
                 {
                 return DMG_BIOS[addr];
                 }
+#endif
         case 0x1:
         case 0x2:
         case 0x3:
@@ -200,13 +180,11 @@ u8 READ(u16 addr)
             if (addr < UNUSED_ADDR)
                 return OAM[addr - OAM_ADDR];
             if (addr < IO_ADDR)
-                return 0; // lol unused
+                return 0; // unused
             switch (addr & 0xFF)        // 0xFF00 .. 0xFFFF
                 {
                 // I/O Registers
                 case 0x00:
-                    if ((R_P1 & 0x0F) != 0x0F)
-                        call = true;
                     return 0xC0 | R_P1;
                 case 0x01: return R_SB;
                 case 0x02: return R_SC;
@@ -401,7 +379,7 @@ void WRITE(u16 addr, u8 val)
                 return;
                 }
             if (addr < IO_ADDR)
-                return;    // lol unused
+                return;    // unused
             switch (addr & 0xFF)        // 0xFF00 .. 0xFFFF
                 {
                 // I/O Registers
@@ -676,14 +654,12 @@ void StepCPU()
                 PC = CONTROL_INTR_ADDR;
                 R_IF ^= CONTROL_INTR;
                 }
-            // PushCallstack( 0xee00 | PC);
             }
         }
     
     // Execute one instruction
     OP = (gb_halt ? 0x00 : READ(PC++));
     inst_cycles = OP_CYCLES[OP];
-    call = false;
     switch (OP)
         {
         case 0x00: // NOP
@@ -1762,7 +1738,6 @@ void StepCPU()
                 NN = READ(SP++);
                 NN |= READ(SP++) << 8;
                 PC = NN;
-                // PopCallstack();
                 }
             break;
         case 0xC1: // POP BC
@@ -1790,7 +1765,6 @@ void StepCPU()
                 WRITE(--SP, PC >> 8);
                 WRITE(--SP, PC & 0xFF);
                 PC = NN;
-                call = true;
                 }
             break;
         case 0xC5: // PUSH BC
@@ -1810,7 +1784,6 @@ void StepCPU()
             WRITE(--SP, PC >> 8);
             WRITE(--SP, PC & 0xFF);
             PC = 0x0000;
-            call = true;
             break;
         case 0xC8: // RET Z
             if (F_Z)
@@ -1818,14 +1791,12 @@ void StepCPU()
                 NN = READ(SP++);
                 NN |= READ(SP++) << 8;
                 PC = NN;
-                // PopCallstack();
                 }
             break;
         case 0xC9: // RET
             NN = READ(SP++);
             NN |= READ(SP++) << 8;
             PC = NN;
-            // PopCallstack();
             break;
         case 0xCA: // JP Z, imm
             NN = READ(PC++);
@@ -1846,7 +1817,6 @@ void StepCPU()
                 WRITE(--SP, PC >> 8);
                 WRITE(--SP, PC & 0xFF);
                 PC = NN;
-                call = true;
                 }
             break;
         case 0xCD: // CALL imm
@@ -1855,7 +1825,6 @@ void StepCPU()
             WRITE(--SP, PC >> 8);
             WRITE(--SP, PC & 0xFF);
             PC = NN;
-            call = true;
             break;
         case 0xCE: // ADC A, imm
             N = READ(PC++);
@@ -1870,7 +1839,6 @@ void StepCPU()
             WRITE(--SP, PC >> 8);
             WRITE(--SP, PC & 0xFF);
             PC = 0x0008;
-            call = true;
             break;
         case 0xD0: // RET NC
             if (!F_C)
@@ -1878,7 +1846,6 @@ void StepCPU()
                 NN = READ(SP++);
                 NN |= READ(SP++) << 8;
                 PC = NN;
-                // PopCallstack();
                 }
             break;
         case 0xD1: // POP DE
@@ -1903,7 +1870,6 @@ void StepCPU()
                 WRITE(--SP, PC >> 8);
                 WRITE(--SP, PC & 0xFF);
                 PC = NN;
-                call = true;
                 }
             break;
         case 0xD5: // PUSH DE
@@ -1923,7 +1889,6 @@ void StepCPU()
             WRITE(--SP, PC >> 8);
             WRITE(--SP, PC & 0xFF);
             PC = 0x0010;
-            call = true;
             break;
         case 0xD8: // RET C
             if (F_C)
@@ -1931,14 +1896,12 @@ void StepCPU()
                 NN = READ(SP++);
                 NN |= READ(SP++) << 8;
                 PC = NN;
-                // PopCallstack();
                 }
             break;
         case 0xD9: // RETI
             NN = READ(SP++);
             NN |= READ(SP++) << 8;
             PC = NN;
-            // PopCallstack();
             gb_ime = 1;
             break;
         case 0xDA: // JP C, imm
@@ -1959,7 +1922,6 @@ void StepCPU()
                 WRITE(--SP, PC >> 8);
                 WRITE(--SP, PC & 0xFF);
                 PC = NN;
-                call = true;
                 }
             break;
         case 0xDD: // illegal
@@ -1977,7 +1939,6 @@ void StepCPU()
             WRITE(--SP, PC >> 8);
             WRITE(--SP, PC & 0xFF);
             PC = 0x0018;
-            call = true;
             break;
         case 0xE0: // LD (0xFF00+imm), A
             WRITE(0xFF00 | READ(PC++), R_A);
@@ -2008,7 +1969,6 @@ void StepCPU()
             WRITE(--SP, PC >> 8);
             WRITE(--SP, PC & 0xFF);
             PC = 0x0020;
-            call = true;
             break;
         case 0xE8: // ADD SP, imm
             SN = (s8)READ(PC++);
@@ -2028,15 +1988,6 @@ void StepCPU()
                 F_C = (SP < NN);
                 }
             SP = NN;
-            /*
-            N = READ(PC++);
-            NN = N | (N & 0x80 ? 0xFF00 : 0x0000);
-            NNNN = SP + NN;
-            F_Z = 0;
-            F_N = 0;
-            F_H = ((NNNN ^ NN ^ SP) & 0x1000 ? 1 : 0); // ^ (SN >> 7);
-            F_C = (NNNN & 0xFFFF0000) ? 1 : 0;
-            SP = (NNNN & 0xFFFF);*/
             break;
         case 0xE9: // JP (HL)
             PC = R_HL;
@@ -2061,7 +2012,6 @@ void StepCPU()
             WRITE(--SP, PC >> 8);
             WRITE(--SP, PC & 0xFF);
             PC = 0x0028;
-            call = true;
             break;
         case 0xF0: // LD A, (0xFF00+imm)
             R_A = READ(0xFF00 | READ(PC++));
@@ -2097,7 +2047,6 @@ void StepCPU()
             WRITE(--SP, PC >> 8);
             WRITE(--SP, PC & 0xFF);
             PC = 0x0030;
-            call = true;
             break;
         case 0xF8: // LD HL, SP+/-imm
             SN = (s8)READ(PC++);
@@ -2118,14 +2067,6 @@ void StepCPU()
                 }
             R_H = (NN & 0xFF00) >> 8;
             R_L = (NN & 0x00FF);
-            /*
-            SN = (s8)READ(PC++);
-            NNNN = SP + SN;
-            F_Z = 0; F_N = 0;
-            F_H = (SP ^ NNNN) & 0x1000 ? 1 : 0;
-            F_C = (NNNN & 0xFFFF0000) ? 1 : 0;
-            R_H = (NNNN & 0x0000FF00) >> 8;
-            R_L = (NNNN & 0x000000FF);*/
             break;
         case 0xF9: // LD SP, HL
             SP = R_HL;
@@ -2152,27 +2093,8 @@ void StepCPU()
             WRITE(--SP, PC >> 8);
             WRITE(--SP, PC & 0xFF);
             PC = 0x0038;
-            call = true;
             break;
         }
-        
-    // debugging
-    // if (call) PushCallstack(PC);
-
-        /*
-    if (PC == 0x20D6)
-        jump = true;
-    else if (PC == 0x41E6)
-        {
-        if (rom_bank != 6)
-            jump = false; // fail
-        }
-    if (jump)
-        {
-        if (PC == 0x41e6)
-            jump = false; //
-        //std::cerr << std::hex << PC << std::endl;
-        }*/
     
     // CPU timing
     cpu_count += inst_cycles;
@@ -2423,539 +2345,6 @@ void KeyRelease(u8 key)
     //R_IF |= CONTROL_INTR;
     }
 
-// VIDEO ////////////////////////////
-u8 WY, WYC, WX;
-u8 X, Y;
-u8 gb_frameskip = 0;
-u8 gb_framecount = 0;
-
-void SetFrameSkip(u8 f)
-    {
-    gb_frameskip = f;
-    gb_framecount = 0;
-    }
-
-void LCDStart()
-    {
-    if (gb_frameskip)
-        {
-        gb_framecount = (gb_framecount + 1) % gb_frameskip;
-        if (gb_framecount)
-            return;
-        }
-
-    WY = R_WY;
-    WYC = 0;
-
-    // clear the screen
-    if (cgb_enable)
-        memset(cgb_fb, 0x00, LCD_WIDTH * LCD_HEIGHT * 2);
-    else
-        memset(gb_fb, 0x00, LCD_WIDTH * LCD_HEIGHT);
-    }
-
-void LCDDrawLineDebug()
-    {
-    u8 py = R_LY % 8;
-    u8 row = R_LY / 8;
-    for (int x = 0; x < LCD_WIDTH; x += 8)
-        {
-        u8 t1 = VRAM[VRAM_TILES_1 + (row*20 + x/8) * 0x10 + 2*py];
-        u8 t2 = VRAM[VRAM_TILES_1 + (row*20 + x/8) * 0x10 + 2*py + 1];
-        for (int px = 7; px >= 0; px--)
-            {
-            u8 c = (t1 & 1) | ((t2 & 1) << 1);
-            gb_fb[R_LY][x+px] = c;
-            t1 >>= 1;
-            t2 >>= 1;
-            }
-        }
-    }
-
-void LCDDrawLine()
-    {
-    // skip frames on frameskip
-    if (gb_framecount)
-        return;
-
-    //LCDDrawLineDebug();
-
-    if (cgb_enable)
-        LCDDrawLineColor();
-    else
-        LCDDrawLineMono();
-    }
-
-u8 BX;
-u8 BY;
-u8 SX[LCD_WIDTH];
-void LCDDrawLineMono()
-    {
-    u16 bg_line;
-    u16 win_line;
-    u16 tile;
-    u8  t1, t2, c;
-    u8  count = 0;
-
-    if (R_LCDC & LCDC_BG_ENABLE)
-        {
-        BY = R_LY + R_SCY;
-        bg_line = (R_LCDC & LCDC_BG_MAP) ? VRAM_BMAP_2 : VRAM_BMAP_1;
-        bg_line += (BY >> 3) * 0x20;
-        }
-    else
-        bg_line = 0;
-
-    if (R_LCDC & LCDC_WINDOW_ENABLE && R_LY >= WY && R_WX <= 166)
-        {
-        win_line = (R_LCDC & LCDC_WINDOW_MAP) ? VRAM_BMAP_2 : VRAM_BMAP_1;
-        win_line += (WYC >> 3) * 0x20;
-        }
-    else
-        win_line = 0;
-
-    memset(SX, 0xFF, LCD_WIDTH);
-
-    // draw background
-    if (bg_line)
-        {
-        X = LCD_WIDTH - 1;
-        BX = X + R_SCX;
-
-        // lookup tile index
-        u8 py = (BY & 0x07);
-        u8 px = 7 - (BX & 0x07);
-        u8 idx = VRAM[bg_line + (BX >> 3)];
-        if (R_LCDC & LCDC_TILE_SELECT)
-            tile = VRAM_TILES_1 + idx * 0x10;
-        else
-            tile = VRAM_TILES_2 + ((idx + 0x80) % 0x100) * 0x10;
-        tile += 2*py;
-
-        // fetch first tile
-        t1 = VRAM[tile] >> px;
-        t2 = VRAM[tile+1] >> px;
-        for (; X != 0xFF; X--)
-            {
-            SX[X] = 0xFE;
-            if (px == 8)
-                {
-                // fetch next tile
-                px = 0;
-                BX = X + R_SCX;
-                idx = VRAM[bg_line + (BX >> 3)];
-                if (R_LCDC & LCDC_TILE_SELECT)
-                    tile = VRAM_TILES_1 + idx * 0x10;
-                else
-                    tile = VRAM_TILES_2 + ((idx + 0x80) % 0x100) * 0x10;
-                tile += 2*py;
-                t1 = VRAM[tile];
-                t2 = VRAM[tile+1];
-                }
-            // copy background
-            c = (t1 & 0x1) | ((t2 & 0x1) << 1);
-            gb_fb[R_LY][X] = c;// BGP[c];
-            t1 = t1 >> 1;
-            t2 = t2 >> 1;
-            px++;
-            }
-        }
-
-    // draw window
-    if (win_line)
-        {
-        X = LCD_WIDTH - 1;
-        WX = X - R_WX + 7;
-
-        // look up tile
-        u8 py = WYC & 0x07;
-        u8 px = 7 - (WX & 0x07);
-        u8 idx = VRAM[win_line + (WX >> 3)];
-        if (R_LCDC & LCDC_TILE_SELECT)
-            tile = VRAM_TILES_1 + idx * 0x10;
-        else
-            tile = VRAM_TILES_2 + ((idx + 0x80) % 0x100) * 0x10;
-        tile += 2*py;
-
-        // fetch first tile
-        t1 = VRAM[tile] >> px;
-        t2 = VRAM[tile+1] >> px;
-
-        // loop & copy window
-        u8 end = (R_WX < 7 ? 0 : R_WX - 7) - 1;
-        for (; X != end; X--)
-            {
-            SX[X] = 0xFE;
-            if (px == 8)
-                {
-                // fetch next tile
-                px = 0;
-                WX = X - R_WX + 7;
-                idx = VRAM[win_line + (WX >> 3)];
-                if (R_LCDC & LCDC_TILE_SELECT)
-                    tile = VRAM_TILES_1 + idx * 0x10;
-                else
-                    tile = VRAM_TILES_2 + ((idx + 0x80) % 0x100) * 0x10;
-                tile += 2*py;
-                t1 = VRAM[tile];
-                t2 = VRAM[tile+1];
-                }
-            // copy window
-            c = (t1 & 0x1) | ((t2 & 0x1) << 1);
-            gb_fb[R_LY][X] = c; //BGP[c];
-            t1 = t1 >> 1;
-            t2 = t2 >> 1;
-            px++;
-            }
-        WYC++; // advance window line
-        }
-
-    // draw sprites
-    if (R_LCDC & LCDC_OBJ_ENABLE)
-        {
-        for (u8 s = NUM_SPRITES - 1; s != 0xFF; s--)
-        //for (u8 s = 0; s < NUM_SPRITES && count < MAX_SPRITES_LINE; s++)
-            {
-            u8 OY = OAM[4*s + 0];
-            u8 OX = OAM[4*s + 1];
-            u8 OT = OAM[4*s + 2] & (R_LCDC & LCDC_OBJ_SIZE ? 0xFE : 0xFF);
-            u8 OF = OAM[4*s + 3];
-
-            // sprite is on this line
-            if (R_LY + (R_LCDC & LCDC_OBJ_SIZE ? 0 : 8) < OY && R_LY + 16 >= OY)
-                {
-                count++;
-                if (OX == 0 || OX >= 168)
-                    continue;   // but not visible
-
-                // y flip
-                u8 py = R_LY - OY + 16;
-                if (OF & OBJ_FLIP_Y) 
-                    py = (R_LCDC & LCDC_OBJ_SIZE ? 15 : 7) - py;
-
-                // fetch the tile
-                t1 = VRAM[VRAM_TILES_1 + OT * 0x10 + 2*py];
-                t2 = VRAM[VRAM_TILES_1 + OT * 0x10 + 2*py + 1];
-
-                // handle x flip
-                u8 dir, start, end, shift;
-                if (OF & OBJ_FLIP_X)
-                    {
-                    dir = 1;
-                    start = (OX < 8 ? 0 : OX - 8);
-                    end = MIN(OX, LCD_WIDTH);
-                    shift = 8 - OX + start;
-                    }
-                else
-                    {
-                    dir = -1;
-                    start = MIN(OX, LCD_WIDTH) - 1;
-                    end = (OX < 8 ? 0 : OX - 8) - 1;
-                    shift = OX - (start + 1);
-                    }
-
-                // copy tile
-                t1 >>= shift;
-                t2 >>= shift;
-                for (X = start; X != end; X += dir)
-                    {
-                    c = (t1 & 0x1) | ((t2 & 0x1) << 1);
-                    // check transparency / sprite overlap / background overlap
-                    if (c && OX <= SX[X] && 
-                        !((OF & OBJ_PRIORITY) && ((gb_fb[R_LY][X] & 0x3) && SX[X] == 0xFE)))
-//                    if (c && OX <= SX[X] && !(OF & OBJ_PRIORITY && gb_fb[R_LY][X] & 0x3))
-                        {
-                        SX[X] = OX;
-                        gb_fb[R_LY][X] = (OF & OBJ_PALETTE) ? OBJP[c + 4] : OBJP[c];
-                        }
-                    t1 = t1 >> 1;
-                    t2 = t2 >> 1;
-                    }
-                }
-            }
-        }
-
-        for (X = 0; X < LCD_WIDTH; X++)
-            if (SX[X] == 0xFE)
-                gb_fb[R_LY][X] = BGP[gb_fb[R_LY][X]];
-    }
-
-
-// color
-void LCDDrawLineColor()
-    {
-    u16 bg_line;
-    u16 win_line;
-    u16 tile;
-    u8  t1, t2, c;
-    u8  count = 0;
-
-    //if (R_LCDC & LCDC_BG_ENABLE)
-    if (true)
-        {
-        BY = R_LY + R_SCY;
-        bg_line = (R_LCDC & LCDC_BG_MAP) ? VRAM_BMAP_2 : VRAM_BMAP_1;
-        bg_line += (BY >> 3) * 0x20;
-        }
-    else
-        bg_line = 0;
-
-    if (R_LCDC & LCDC_WINDOW_ENABLE && R_LY >= WY && R_WX <= 166)
-        {
-        win_line = (R_LCDC & LCDC_WINDOW_MAP) ? VRAM_BMAP_2 : VRAM_BMAP_1;
-        win_line += (WYC >> 3) * 0x20;
-        }
-    else
-        win_line = 0;
-
-    // use this array to track bg/window colors and priorities
-    memset(SX, 0x00, LCD_WIDTH);
-
-    // draw background
-    if (bg_line)
-        {
-        X = LCD_WIDTH - 1;
-        BX = X + R_SCX;
-
-        // lookup tile index
-        u8 idx = VRAM[bg_line + (BX >> 3)];
-        u8 attr = VRAM[bg_line + (BX >> 3) + VRAM_BANK_SIZE];
-
-        u8 py = (BY & 0x07);
-        if (attr & BMAP_FLIP_Y)
-            py = 7 - py;
-
-        u8 px = 7 - (BX & 0x07);
-
-        if (R_LCDC & LCDC_TILE_SELECT)
-            tile = VRAM_TILES_1 + idx * 0x10;
-        else
-            tile = VRAM_TILES_2 + ((idx + 0x80) % 0x100) * 0x10;
-        tile += 2*py;
-        if (attr & BMAP_VRAM_BANK) tile += VRAM_BANK_SIZE;
-
-        // fetch first tile
-        t1 = VRAM[tile];
-        t2 = VRAM[tile+1];
-        if (attr & BMAP_FLIP_X)
-            {
-            t1 = (t1 & 0x01) << 7 | (t1 & 0x02) << 5 |
-                (t1 & 0x04) << 3 | (t1 & 0x08) << 1 |
-                (t1 & 0x10) >> 1 | (t1 & 0x20) >> 3 |
-                (t1 & 0x40) >> 5 | (t1 & 0x80) >> 7;
-            t2 = (t2 & 0x01) << 7 | (t2 & 0x02) << 5 |
-                (t2 & 0x04) << 3 | (t2 & 0x08) << 1 |
-                (t2 & 0x10) >> 1 | (t2 & 0x20) >> 3 |
-                (t2 & 0x40) >> 5 | (t2 & 0x80) >> 7;
-            }
-        t1 >>= px;
-        t2 >>= px;
-
-        for (; X != 0xFF; X--)
-            {
-            if (px == 8)
-                {
-                // fetch next tile
-                px = 0;
-                BX = X + R_SCX;
-                idx = VRAM[bg_line + (BX >> 3)];
-                attr = VRAM[bg_line + (BX >> 3) + VRAM_BANK_SIZE];
-
-                py = (BY & 0x07);
-                if (attr & BMAP_FLIP_Y)
-                    py = 7 - py;
-
-                if (R_LCDC & LCDC_TILE_SELECT)
-                    tile = VRAM_TILES_1 + idx * 0x10;
-                else
-                    tile = VRAM_TILES_2 + ((idx + 0x80) % 0x100) * 0x10;
-                tile += 2*py;
-                if (attr & BMAP_VRAM_BANK) tile += VRAM_BANK_SIZE;
-
-                t1 = VRAM[tile];
-                t2 = VRAM[tile+1];
-                if (attr & BMAP_FLIP_X)
-                    {
-                    t1 = (t1 & 0x01) << 7 | (t1 & 0x02) << 5 |
-                        (t1 & 0x04) << 3 | (t1 & 0x08) << 1 |
-                        (t1 & 0x10) >> 1 | (t1 & 0x20) >> 3 |
-                        (t1 & 0x40) >> 5 | (t1 & 0x80) >> 7;
-                    t2 = (t2 & 0x01) << 7 | (t2 & 0x02) << 5 |
-                        (t2 & 0x04) << 3 | (t2 & 0x08) << 1 |
-                        (t2 & 0x10) >> 1 | (t2 & 0x20) >> 3 |
-                        (t2 & 0x40) >> 5 | (t2 & 0x80) >> 7;
-                    }
-                }
-            // copy background
-            c = (t1 & 0x1) | ((t2 & 0x1) << 1);
-            SX[X] = c | (attr & BMAP_PRIORITY);
-            cgb_fb[R_LY][X] = BCPD[4*(attr & BMAP_CPALETTE) + c];
-            t1 = t1 >> 1;
-            t2 = t2 >> 1;
-            px++;
-            }
-        }
-
-    // draw window
-    if (win_line)
-        {
-        X = LCD_WIDTH - 1;
-        WX = X - R_WX + 7;
-
-        // look up tile
-        u8 idx = VRAM[win_line + (WX >> 3)];
-        u8 attr = VRAM[win_line + (WX >> 3) + VRAM_BANK_SIZE];
-
-        u8 py = WYC & 0x07;
-        if (attr & BMAP_FLIP_Y)
-            py = 7 - py;
-
-        u8 px = 7 - (WX & 0x07);
-
-        if (R_LCDC & LCDC_TILE_SELECT)
-            tile = VRAM_TILES_1 + idx * 0x10;
-        else
-            tile = VRAM_TILES_2 + ((idx + 0x80) % 0x100) * 0x10;
-        tile += 2*py;
-        if (attr & BMAP_VRAM_BANK) tile += VRAM_BANK_SIZE;
-
-        // fetch first tile
-        t1 = VRAM[tile];
-        t2 = VRAM[tile+1];
-        if (attr & BMAP_FLIP_X)
-            {
-            t1 = (t1 & 0x01) << 7 | (t1 & 0x02) << 5 |
-                (t1 & 0x04) << 3 | (t1 & 0x08) << 1 |
-                (t1 & 0x10) >> 1 | (t1 & 0x20) >> 3 |
-                (t1 & 0x40) >> 5 | (t1 & 0x80) >> 7;
-            t2 = (t2 & 0x01) << 7 | (t2 & 0x02) << 5 |
-                (t2 & 0x04) << 3 | (t2 & 0x08) << 1 |
-                (t2 & 0x10) >> 1 | (t2 & 0x20) >> 3 |
-                (t2 & 0x40) >> 5 | (t2 & 0x80) >> 7;
-            }
-        t1 >>= px;
-        t2 >>= px;
-
-        // loop & copy window
-        u8 end = (R_WX < 7 ? 0 : R_WX - 7) - 1;
-        for (; X != end; X--)
-            {
-            if (px == 8)
-                {
-                // fetch next tile
-                px = 0;
-                WX = X - R_WX + 7;
-                idx = VRAM[win_line + (WX >> 3)];
-                attr = VRAM[win_line + (WX >> 3) + VRAM_BANK_SIZE];
-
-                py = (BY & 0x07);
-                if (attr & BMAP_FLIP_Y)
-                    py = 7 - py;
-
-                if (R_LCDC & LCDC_TILE_SELECT)
-                    tile = VRAM_TILES_1 + idx * 0x10;
-                else
-                    tile = VRAM_TILES_2 + ((idx + 0x80) % 0x100) * 0x10;
-                tile += 2*py;
-                if (attr & BMAP_VRAM_BANK) tile += VRAM_BANK_SIZE;
-
-                t1 = VRAM[tile];
-                t2 = VRAM[tile+1];
-                if (attr & BMAP_FLIP_X)
-                    {
-                    t1 = (t1 & 0x01) << 7 | (t1 & 0x02) << 5 |
-                        (t1 & 0x04) << 3 | (t1 & 0x08) << 1 |
-                        (t1 & 0x10) >> 1 | (t1 & 0x20) >> 3 |
-                        (t1 & 0x40) >> 5 | (t1 & 0x80) >> 7;
-                    t2 = (t2 & 0x01) << 7 | (t2 & 0x02) << 5 |
-                        (t2 & 0x04) << 3 | (t2 & 0x08) << 1 |
-                        (t2 & 0x10) >> 1 | (t2 & 0x20) >> 3 |
-                        (t2 & 0x40) >> 5 | (t2 & 0x80) >> 7;
-                    }
-                }
-            // copy window
-            c = (t1 & 0x1) | ((t2 & 0x1) << 1);
-            SX[X] = c | 0x04 | (attr & BMAP_PRIORITY);
-            cgb_fb[R_LY][X] = BCPD[4*(attr & BMAP_CPALETTE) + c];
-            t1 = t1 >> 1;
-            t2 = t2 >> 1;
-            px++;
-            }
-        WYC++; // advance window line
-        }
-
-    // draw sprites
-    if (R_LCDC & LCDC_OBJ_ENABLE)
-        {
-        for (u8 s = NUM_SPRITES - 1; s != 0xFF; s--)
-        //for (u8 s = 0; s < NUM_SPRITES && count < MAX_SPRITES_LINE; s++)
-            {
-            u8 OY = OAM[4*s + 0];
-            u8 OX = OAM[4*s + 1];
-            u8 OT = OAM[4*s + 2] & (R_LCDC & LCDC_OBJ_SIZE ? 0xFE : 0xFF);
-            u8 OF = OAM[4*s + 3];
-
-            // sprite is on this line
-            if (R_LY + (R_LCDC & LCDC_OBJ_SIZE ? 0 : 8) < OY && R_LY + 16 >= OY)
-                {
-                count++;
-                if (OX == 0 || OX >= 168)
-                    continue;   // but not visible
-
-                // y flip
-                u8 py = R_LY - OY + 16;
-                if (OF & OBJ_FLIP_Y) 
-                    py = (R_LCDC & LCDC_OBJ_SIZE ? 15 : 7) - py;
-
-                // fetch the tile
-                tile = VRAM_TILES_1 + OT * 0x10 + 2*py;
-                if (OF & OBJ_VRAM_BANK) tile += VRAM_BANK_SIZE;
-                t1 = VRAM[tile];
-                t2 = VRAM[tile + 1];
-
-                // handle x flip
-                u8 dir, start, end, shift;
-                if (OF & OBJ_FLIP_X)
-                    {
-                    dir = 1;
-                    start = (OX < 8 ? 0 : OX - 8);
-                    end = MIN(OX, LCD_WIDTH);
-                    shift = 8 - OX + start;
-                    }
-                else
-                    {
-                    dir = -1;
-                    start = MIN(OX, LCD_WIDTH) - 1;
-                    end = (OX < 8 ? 0 : OX - 8) - 1;
-                    shift = OX - (start + 1);
-                    }
-
-                // copy tile
-                t1 >>= shift;
-                t2 >>= shift;
-                for (X = start; X != end; X += dir)
-                    {
-                    c = (t1 & 0x1) | ((t2 & 0x1) << 1);
-                    // check transparency / bg overlap / master bg priority / sprite priority and bg priority
-                    if (c && 
-                        ((SX[X] & 0x7) == 0 || 
-                            (R_LCDC & 0x1) == 0 ||
-                                ((OF & OBJ_PRIORITY) == 0 && (SX[X] & BMAP_PRIORITY) == 0)))
-                        {
-                        cgb_fb[R_LY][X] = OCPD[4*(OF & OBJ_CPALETTE) + c];
-                        SX[X] = 0;
-                        }
-                    t1 = t1 >> 1;
-                    t2 = t2 >> 1;
-                    }
-                }
-            }
-        }
-    }
-
-
-
-
 // SOUND ////////////////////////////
 // 
 
@@ -3012,10 +2401,15 @@ void PowerUp()
     R_L = 0x4D;
     SP  = 0xFFFE;
 
-    if (gb_bios_enable)
+#ifdef DMG_BIOS_ENABLE
+    if (gb_bios_enable) {
         PC  = 0x0000;
-    else
+    } else {
+#endif
         PC  = 0x0100;
+#ifdef DMG_BIOS_ENABLE
+    }
+#endif
     
     // timer
     cpu_count   = 0x0000;
