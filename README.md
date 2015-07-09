@@ -1,5 +1,7 @@
 ### GameBoy Emulator Source Code
 
+![Screenshot Image](image.png?raw=true "Screenshot")
+
 
 The main reference used in building this emulator (almost exclusively) was the Pan Document or "Everything You Always Wanted To Know About GAMEBOY*".
 This provided information about the registers, interrupts, cartridges, and memory layout of the GameBoy. 
@@ -9,7 +11,7 @@ I'm sure there were also some other documents that I found that helped along the
 
 The features of Greg's GameBoy Emulator are that it is written in C and compiles natively to many platforms. It uses SDL and can easily be ported.
 And there is also a JavaScript implementation that can be used in the browser. Compatibility has not been widely tested but I will say that it
-can emulate most original GameBoy games, excluding games that were compatible with both the GameBoy and the GameBoy color. GameBoy Color support
+can emulate most original GameBoy games, excluding games that were compatible with both the GameBoy and the GameBoy Color. GameBoy Color support
 has not been fully implemented yet.
 
 
@@ -17,7 +19,7 @@ The emulator has no sound output although it binds an SDL audio interface for pr
 Windows or Linux (or some other platform that uses GCC).
 
 
-Some caveats: There may be discrepencies on how this emulator draws a frame from what an actual GameBoy draws. For example, when there are overlapping
+Some caveats: There may be discrepancies on how this emulator draws a frame from what an actual GameBoy draws. For example, when there are overlapping
 sprites it is hard to tell what the correct behavior should be. There also seems to be a vertical scanline that needs to be adjusted if not in the
 normal emulator then in the web implementation.
 
