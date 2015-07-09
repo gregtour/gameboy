@@ -27,8 +27,15 @@ u16  fps;
 
 // screen space
 SDL_Surface* screen = NULL;
-const int SCR_WIDTH = 640;
-const int SCR_HEIGHT = 576;
+#if SDL_1_2
+#else
+SDL_Window* window;
+SDL_Renderer* renderer;
+SDL_Texture* screen_tex = NULL;
+#endif
+
+const int SCR_WIDTH = 320;
+const int SCR_HEIGHT = 288;
 u32 fb[LCD_HEIGHT][LCD_WIDTH];
 
 // color schemes
@@ -42,15 +49,10 @@ u32* color_map;
 // gameboy color conversion
 u32 ColorTo32(u16 cgb)
     {
-    u8 r = (cgb & 0x001F) << 3;// * 0xFF / 0x1F;
-    u8 g = ((cgb >>  5) & 0x001F) << 3;// * 0xFF / 0x1F;
-    u8 b = ((cgb >> 10) & 0x001F) << 3;// * 0xFF / 0x1F;
+    u8 r = (cgb & 0x001F) << 3;
+    u8 g = ((cgb >>  5) & 0x001F) << 3;
+    u8 b = ((cgb >> 10) & 0x001F) << 3;
 
-	//cy = (299*r + 587*g + 114*b) / 1000;
-	//cb = (-16874*r - 33126*g + 50000*b + 12800000) / 100000;
-	//cr = (50000*r - 41869*g - 8131*b + 12800000) / 100000;
-			
-			//*v0++ = *v1++ = (cy<<24) | (cb<<16) | (cy<<8) | cr;
     return 0xFF000000 | (r << 16) | (g << 8) | b;
     }
 
@@ -92,7 +94,7 @@ FILE* rom_f;
 FILE* save_f;
 
 
-int main(int argc, char **argv)
+int SDL_main(int argc, char **argv)
     {
     int     i, x, y;
     u8      j;
@@ -105,8 +107,23 @@ int main(int argc, char **argv)
 
     // Init SDL
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
-    screen = SDL_SetVideoMode(800, 600, 32, SDL_HWSURFACE | SDL_DOUBLEBUF /*| SDL_FULLSCREEN*/);
+#if SDL_1_2
+    screen = SDL_SetVideoMode(SCR_WIDTH, SCR_HEIGHT, 32, SDL_HWSURFACE | SDL_DOUBLEBUF /*| SDL_FULLSCREEN*/);
     SDL_WM_SetCaption("GameBoy", 0);
+#else
+    window = SDL_CreateWindow("GameBoy", SDL_WINDOWPOS_CENTERED, 
+                                SDL_WINDOWPOS_CENTERED,
+                                SCR_WIDTH, SCR_HEIGHT,
+                                SDL_WINDOW_SHOWN | SDL_WINDOW_INPUT_FOCUS);
+    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderClear(renderer);
+    SDL_RenderPresent(renderer);
+    screen_tex = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, SCR_WIDTH, SCR_HEIGHT);
+
+    screen = SDL_CreateRGBSurface(0, SCR_WIDTH, SCR_HEIGHT, 32, 0xFF000000, 0x00FF0000, 0x0000FF00, 0x000000FF);
+#endif
+
 
     // Start Audio
     SDLAudioStart();
@@ -129,7 +146,11 @@ int main(int argc, char **argv)
                 s = &rom_file[i+1];
             }
         sprintf(window_caption, "GameBoy - %s", s);
+#if SDL_1_2
         SDL_WM_SetCaption(window_caption, 0);
+#else
+        SDL_SetWindowTitle(window, window_caption);
+#endif
         }
 
     // Load ROM file
@@ -253,6 +274,7 @@ int main(int argc, char **argv)
                     for (x = 0; x < LCD_WIDTH; x++)
                         fb[y][x] = color_map[gb_fb[y][x] & 3];
 
+
             // render
             SDL_LockSurface(screen);
 
@@ -261,13 +283,21 @@ int main(int argc, char **argv)
             for (y = 0; y < SCR_HEIGHT; y++)
                 {
                 for (x = 0; x < SCR_WIDTH; x++)
-                    *(s + x + 80 + 800*12) = fb[y/4][x/4];
+                    *(s + x) = fb[y*LCD_HEIGHT/SCR_HEIGHT][x*LCD_WIDTH/SCR_WIDTH];
                 s += screen->pitch/4;
                 }
 
             // flip screen
             SDL_UnlockSurface(screen);
+#if SDL_1_2
             SDL_Flip(screen);
+#else
+            SDL_UpdateTexture(screen_tex, NULL, screen->pixels, screen->pitch);
+
+            SDL_RenderClear(renderer);
+            SDL_RenderCopy(renderer, screen_tex, NULL, NULL);
+            SDL_RenderPresent(renderer);
+#endif
 
             //old_ticks = new_ticks;
             new_ticks = SDL_GetTicks();
@@ -278,7 +308,11 @@ int main(int argc, char **argv)
                 f1_ticks = new_ticks;
                 fps = (128*1000)/(f1_ticks - f0_ticks) * (gb_frameskip ? gb_frameskip : 1);
                 sprintf(window_caption_fps, "%s - %u fps", window_caption, fps);
+#if SDL_1_2
                 SDL_WM_SetCaption(window_caption_fps, 0);
+#else
+                SDL_SetWindowTitle(window, window_caption_fps);
+#endif
                 }
 
             // Cap at 60FPS unless using frameskip
@@ -301,6 +335,10 @@ int main(int argc, char **argv)
             }
         }
 
+#if SDL_2_0
+    SDL_FreeSurface(screen);
+#endif
+
     // Clean up
     free(rom);
     free(save);
@@ -308,4 +346,3 @@ int main(int argc, char **argv)
 
     return 0;
     }
-
