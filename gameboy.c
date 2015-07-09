@@ -50,6 +50,7 @@ u8  NUM_RAM_BANKS[] = {0, 1, 1, 4, 16};
 
 // GB ///////////////////////////////
 u8 gb_bios_enable = 1;
+u8 opt_use_gb_bios = 1;
 u8 gb_halt = 0;
 u8 gb_ime = 1;
 u8 gb_keys = 0;
@@ -435,12 +436,16 @@ void WRITE(u16 addr, u8 val)
                 case 0x45: R_LYC = val;     return;
                     
                 // DMA Register
-                case 0x46:
+                case 0x46: 
+                    {
+                    u8 offset;
                     R_DMA = (val % 0xF1);
-                    for (u8 i = 0; i < OAM_SIZE; i++)
-                        OAM[i] = READ((R_DMA << 8) + i);
+                    for (offset = 0; offset < OAM_SIZE; offset++)
+                        {
+                        OAM[offset] = READ((R_DMA << 8) + offset);
+                        }
                     return;
-                
+                    }
                 // DGM Palette Registers
                 case 0x47:
                     R_BGP = val;
@@ -510,8 +515,9 @@ void WRITE(u16 addr, u8 val)
                         {
                         if (R_HDMA & HDMA_OFF)
                             {
+                            u16 i;
                             // blocking DMA
-                            for (u16 i = 0; i < (val + 1) * 0x10; i++)
+                            for (i = 0; i < (val + 1) * 0x10; i++)
                                 WRITE(R_HDMAD+i, READ(R_HDMAS+i));
                             inst_cycles += 8 * (cgb_double + 1) * (val + 1);
                             R_HDMA = 0xFF;
@@ -873,31 +879,9 @@ void StepCPU()
             D2 = R_A & 0x0F;
             if (F_N)
                 {
-                if (F_H) 
-                    {
-//                    if (D2 >= 6)
-                        D2 -= 6;
-//                    else
-//                        {
-//                        D2 += 4;
-//                        D1--;
-//                        }
-                    }
-                if (F_C)
-                    {
-//                    if (D1 >= 6)
-                        D1 -= 6;
-//                    else
-//                        {
-//                        D1 += 4;
-//                        F_C = 1;
-//                        }
-                    }
-                if (D2 > 9)
-                    {
-                    D2 -= 6;
-                    //D1++;
-                    }
+                if (F_H) D2 -= 6;
+                if (F_C) D1 -= 6;
+                if (D2>9) D2 -= 6;
                 if (D1 > 9)
                     {
                     D1 -= 6;
@@ -2142,8 +2126,9 @@ void StepCPU()
             // check for HBLANK HDMA
             if (cgb_enable && (R_HDMA & HDMA_OFF) == 0x00)
                 {
+                u8 i;
                 // copy 0x10 bytes each hblank
-                for (u8 i = 0; i < 0x10; i++)
+                for (i = 0; i < 0x10; i++)
                     WRITE(R_HDMAD + (R_HDMA * 0x10) + i, READ(R_HDMAS + (R_HDMA * 0x10) + i));
                 R_HDMA--;
                 lcd_count += 8 * (cgb_double + 1);
@@ -2373,6 +2358,7 @@ u32 GetSaveSize(u8* rom)
 
 void PowerUp()
     {
+    u8 i;
     // GB
     gb_halt = 0;
     gb_ime = 1;
@@ -2402,11 +2388,13 @@ void PowerUp()
     SP  = 0xFFFE;
 
 #ifdef DMG_BIOS_ENABLE
-    if (gb_bios_enable) {
+    if (gb_bios_enable && opt_use_gb_bios) 
+    {
         PC  = 0x0000;
     } else {
 #endif
         PC  = 0x0100;
+        gb_bios_enable = 0;
 #ifdef DMG_BIOS_ENABLE
     }
 #endif
@@ -2461,6 +2449,6 @@ void PowerUp()
     R_HDMAD     = 0x8000;
 
     // CGB palette
-    for (int i = 0; i < 32; i++)
+    for (i = 0; i < 32; i++)
         BCPD[i] = 0xFFFF;
     }
