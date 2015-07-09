@@ -1,3 +1,4 @@
+#if 1
 /* *****************
  * GameBoy emulator written in C.
  * Credits: Greg Tourville
@@ -30,7 +31,7 @@ FILE* save_f = 0l;
 HMENU MakeMenus(HWND hWnd);
 void  PickROM(HWND hWnd);
 int   LoadGame(HWND hWnd);
-void  DrawFrame(HWND hWnd, HDC hDC);
+void  DrawFrame(HWND hWnd, HDC hDC, HBITMAP screen, u32* pixels)
 
 // Menu options
 enum{ 
@@ -278,7 +279,7 @@ void DrawFrame(HWND hWnd, HDC hDC, HBITMAP screen, u32* pixels)
         for (sy = 0; sy < LCD_HEIGHT; sy++)
             for (sx = 0; sx < LCD_WIDTH; sx++)
                 {
-                pixels[sx + sy*160] = color_map[gb_fb[144-sy-1][sx] & 3];
+                pixels[sx + sy*LCD_WIDTH] = color_map[gb_fb[LCD_HEIGHT-sy-1][sx] & 3];
                 }
             
         GdiFlush();
@@ -629,3 +630,4 @@ int CALLBACK WinMain(HINSTANCE hInstance,
     // Quit
     return 0;
     }
+#endif
