@@ -1,7 +1,7 @@
 #ifndef _SOUND_H
 #define _SOUND_H
 
-#include "SDL_audio.h"
+//#include "SDL_audio.h"
 
 // No sound support yet
 
