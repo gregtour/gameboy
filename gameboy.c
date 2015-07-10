@@ -2358,7 +2358,7 @@ u32 GetSaveSize(u8* rom)
 
 void PowerUp()
     {
-    u8 i;
+    u32 i; u8 x; u8 y;
     // GB
     gb_halt = 0;
     gb_ime = 1;
@@ -2451,4 +2451,15 @@ void PowerUp()
     // CGB palette
     for (i = 0; i < 32; i++)
         BCPD[i] = 0xFFFF;
+
+    // GB framebuffer
+    for (y = 0; y < LCD_HEIGHT; y++)
+        for (x = 0; x < LCD_WIDTH; x++)
+            gb_fb[y][x] = 0;
+
+    // Clear VRAM
+    for (i = 0; i < VRAM_SIZE; i++)
+        {
+        VRAM[i] = 0;
+        }
     }

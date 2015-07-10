@@ -1,4 +1,3 @@
-#if 1
 /* *****************
  * GameBoy emulator written in C.
  * Credits: Greg Tourville
@@ -11,8 +10,8 @@
 
 // Class name
 const char* g_szClassName = "GameBoy Emulator";
-HDC hDC = NULL;
 
+#define REFRESH_RATE 15
 char  window_caption[100];
 char  window_caption_fps[100];
 char  rom_file_buf[260];
@@ -28,10 +27,10 @@ FILE* rom_f = 0l;
 FILE* save_f = 0l;
 
 // Declarations
+void  DrawFrame(HWND hWnd, HDC hDC, HBITMAP screen, u32* pixels, HBRUSH brush);
 HMENU MakeMenus(HWND hWnd);
 void  PickROM(HWND hWnd);
 int   LoadGame(HWND hWnd);
-void  DrawFrame(HWND hWnd, HDC hDC, HBITMAP screen, u32* pixels)
 
 // Menu options
 enum{ 
@@ -39,6 +38,7 @@ enum{
     ID_FILE_LOAD, 
     ID_FILE_SAVE, 
     ID_EXIT, 
+    // video scaling
     ID_STUFF_SCALE_1, 
     ID_STUFF_SCALE_2, 
     ID_STUFF_SCALE_3, 
@@ -47,13 +47,19 @@ enum{
     ID_STUFF_USE_BIOS,
 #endif
     ID_RESET,
+    // color scheme
     ID_COLORS_RED,     
     ID_COLORS_GREEN,   
     ID_COLORS_BLUE,    
     ID_COLORS_ORANGE,  
     ID_COLORS_GRAYSCALE,
     ID_COLORS_NIGHTTIME,
-    ID_COLORS_INVERTED
+    ID_COLORS_INVERTED,
+    // speed / frameskip
+    ID_SPEED_NORMAL,  // 0
+    ID_SPEED_FAST,    // 1
+    ID_SPEED_FASTER,  // 2
+    ID_SPEED_FASTEST  // -1
     };
 
 // Emulator data
@@ -61,7 +67,12 @@ u32  started = 0;
 u8   showtext = 1;
 u8   quit_seq = 0;
 u16  frames = 0;
+u16  rendered = 0;
 u16  fps = 0;
+u8   running = 1;
+UINT speed_setting = ID_SPEED_NORMAL;
+int  frame_limit = 0;
+u32  cur_t, old_t;
 
 // Screen surfaces
 int SCR_WIDTH = LCD_WIDTH * 2;
@@ -71,12 +82,12 @@ u8  window_scale = 2;
 
 // Color scheme
 u32 COLORS_Y[4] = {0xFFFFFFFF, 0xFF999999, 0xFF444444, 0xFF000000};
-u32 COLORS_R[4] = {0xFFFFFFFF, 0xFFFF9999, 0xFF444499, 0xFF000000};
-u32 COLORS_G[4] = {0xFFFFFFFF, 0xFF99FF99, 0xFF994444, 0xFF000000};
-u32 COLORS_B[4] = {0xFFFFFFFF, 0xFF9999FF, 0xFF449944, 0xFF000000};
+u32 COLORS_R[4] = {0xFFFFFFFF, 0xFFBC0000, 0xFF444499, 0xFF000000};
+u32 COLORS_G[4] = {0xFFFFFFFF, 0xFF22DD22, 0xFF994444, 0xFF000000};
+u32 COLORS_B[4] = {0xFFFFFFFF, 0xFF7777EE, 0xFF444499, 0xFF000000};
 u32 COLORS_O[4] = {0xFFFFFFEE, 0xFFFFFF66, 0xFF444499, 0xFF000000};
 u32 COLORS_N[4] = {0xFF000000, 0xFF224466, 0xFFDD66FF, 0xFF9988AA};
-u32 COLORS_I[4] = {0xFF000000, 0xFF444444, 0xFF999999, 0xFFFFFFFF};
+u32 COLORS_I[4] = {0xFF000000, 0xFF444444, 0xFF999999, 0xFFF0F0F0};
 u32* color_maps[] = {COLORS_R, COLORS_G, COLORS_B, COLORS_O, COLORS_Y, COLORS_N, COLORS_I};
 u32* color_map;
 
@@ -255,22 +266,22 @@ HFONT SetupRC(HDC hDC)
     return hFont;
     }
 
-void DrawFrame(HWND hWnd, HDC hDC, HBITMAP screen, u32* pixels)
+void DrawFrame(HWND hWnd, HDC hDC, HBITMAP screen, u32* pixels, HBRUSH brush)
     {
     u8 sx, sy;
+    PAINTSTRUCT ps;
     HDC hdcMem;
-
-    HBRUSH brush;
     char buffer[256];
     RECT rect = {0, 0, SCR_WIDTH, SCR_HEIGHT};
     RECT text;
 
+
+    BeginPaint(hWnd, &ps);
+
     // clear screen
     if (started == 0)
         {
-        brush = CreateSolidBrush(RGB(0, 0, 0));
         FillRect(hDC, &rect, brush);
-        DeleteObject(brush);
         }
 
     // draw framebuffer
@@ -295,13 +306,17 @@ void DrawFrame(HWND hWnd, HDC hDC, HBITMAP screen, u32* pixels)
     // text
     if (showtext)
         {
-        text.top = 10;
-        text.left = 0;
         SetTextColor(hDC, RGB(186, 0, 0));
         SetBkMode(hDC, TRANSPARENT);
-        sprintf(buffer, "FPS: %i File: %s", fps, rom_file);
+        text.top = 1;  text.left = 2;
+        sprintf(buffer, "FPS: %i", fps);
+        DrawText(hDC, buffer, -1, &text, DT_SINGLELINE | DT_NOCLIP);
+        text.top = SCR_HEIGHT - 28;  text.left = 2;
+        sprintf(buffer, "File: %s", rom_file);
         DrawText(hDC, buffer, -1, &text, DT_SINGLELINE | DT_NOCLIP);
         }
+
+    EndPaint(hWnd, &ps);
     }
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -309,6 +324,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     static HDC        hDC;
     static HMENU      hMenu;
     static HBITMAP    screen;
+    static HBRUSH      brush;
     static u32*       pixels;
     static HFONT      font;
     static BITMAPINFO BMI = { 
@@ -320,30 +336,26 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     switch (message)
         {
     case WM_CREATE:
+        hMenu = MakeMenus(hWnd);
         hDC = GetDC(hWnd);
         SetDCPixelFormat(hDC);
         font = SetupRC(hDC);
         screen = CreateDIBSection(hDC, &BMI, DIB_RGB_COLORS, (void**)&pixels, NULL, 0);
+        brush = CreateSolidBrush(RGB(0, 0, 0));
         InvalidateRect(hWnd, NULL, 0);
-        hMenu = MakeMenus(hWnd);
-        SetTimer(hWnd, 101, 1, NULL);
         SetTimer(hWnd, 102, 1000, NULL);
         break;
     case WM_DESTROY:
-        KillTimer(hWnd, 101);
         KillTimer(hWnd, 102);
         DeleteObject(font);
         DeleteObject(screen);
+        DeleteObject(brush);
         PostQuitMessage(1);
+        running = 0;
         break;
     case WM_TIMER:
-        switch (wParam)
+        switch (LOWORD(wParam))
             {
-        case 101:
-            if (started) { RunFrame(); }
-            InvalidateRect(hWnd, NULL, 0);
-            frames++;
-            break;
         case 102:
             fps = frames;
             frames = 0;
@@ -351,7 +363,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             }
         break;
     case WM_PAINT:
-        DrawFrame(hWnd, hDC, screen, pixels);
+        DrawFrame(hWnd, hDC, screen, pixels, brush);
         SwapBuffers(hDC);
         ValidateRect(hWnd, NULL);
         break;
@@ -457,6 +469,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             CheckMenuItem(hMenu, wParam, MF_CHECKED);
             break;
 
+        case ID_SPEED_NORMAL:
+        case ID_SPEED_FAST:
+        case ID_SPEED_FASTER:
+        case ID_SPEED_FASTEST:
+            {
+            int speeds[] = {0, 1, 2, -1};
+            if (LOWORD(wParam) != speed_setting)
+                {
+                CheckMenuItem(hMenu, speed_setting, MF_UNCHECKED);
+                CheckMenuItem(hMenu, wParam, MF_CHECKED);
+                speed_setting = LOWORD(wParam);
+                frame_limit = speeds[speed_setting - ID_SPEED_NORMAL];
+                }
+            break;
+            }
         case ID_EXIT:
             DestroyWindow(hWnd);
             break;
@@ -482,7 +509,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             Input(wParam, 1);
             }
 
-        // Quit on Ctrl+Q
         if (quit_seq & 0x3)
             {
             DestroyWindow(hWnd);
@@ -494,6 +520,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             wParam == VK_Q)
             {
             quit_seq = 0;
+            }
+        else if (wParam == VK_F5)
+            {
+            if (started) 
+                {
+                started = 0;
+                LoadROM(rom, rom_size, save, save_size);
+                started = 1;
+                }
             }
         else
             {
@@ -529,9 +564,16 @@ HMENU MakeMenus(HWND hWnd)
     AppendMenu(hSubMenu, MF_STRING, ID_STUFF_SCALE_3, "Scale &3x");
     AppendMenu(hSubMenu, MF_STRING, ID_STUFF_SCALE_4, "Scale &4x");
 #ifdef DMG_BIOS_ENABLE
-    AppendMenu(hSubMenu, MF_STRING, ID_STUFF_USE_BIOS, "Use DMG Bios");
+    AppendMenu(hSubMenu, MF_STRING, ID_STUFF_USE_BIOS, "&Use DMG Bios");
     CheckMenuItem(hSubMenu, ID_STUFF_USE_BIOS, MF_CHECKED);
 #endif
+
+    AppendMenu(hSubMenu, MF_STRING, ID_SPEED_NORMAL, "&Normal Speed");
+    AppendMenu(hSubMenu, MF_STRING, ID_SPEED_FAST, "&Fast (200%)");
+    AppendMenu(hSubMenu, MF_STRING, ID_SPEED_FASTER, "Faste&r (300%)");
+    AppendMenu(hSubMenu, MF_STRING, ID_SPEED_FASTEST, "Faste&st");
+    CheckMenuItem(hSubMenu, ID_SPEED_NORMAL, MF_CHECKED);
+
     AppendMenu(hSubMenu, MF_STRING, ID_RESET, "&Reset");
     AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT)hSubMenu, "&Stuff");
 
@@ -545,6 +587,9 @@ HMENU MakeMenus(HWND hWnd)
     AppendMenu(hSubMenu, MF_STRING, ID_COLORS_INVERTED,  "&Inverted");
     CheckMenuItem(hSubMenu, ID_COLORS_GRAYSCALE, MF_CHECKED);
     AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT)hSubMenu, "&Colors");
+
+    //hSubMenu = CreatePopupMenu();
+    //AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT)hSubMenu, "S&peed");
 
     SetMenu(hWnd, hMenu);
     return hMenu;
@@ -604,11 +649,27 @@ int CALLBACK WinMain(HINSTANCE hInstance,
     ShowWindow(hWnd, nCmdShow);
     UpdateWindow(hWnd);
 
+    old_t = GetTickCount();
     // Message loop
-    while (GetMessage(&message, NULL, 0, 0) > 0)
+    while (running)
         {
-        //TranslateMessage(&message);
-        DispatchMessage(&message);
+        cur_t = GetTickCount();
+        if (cur_t - old_t >= REFRESH_RATE)
+            {
+            RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
+            rendered = 0;
+            old_t = cur_t;
+            }
+        while (PeekMessage(&message, hWnd, 0, 0, PM_REMOVE))
+            {
+            DispatchMessage(&message);
+            }
+        if ((rendered <= frame_limit || frame_limit == -1)) 
+            { 
+            if (started) { RunFrame(); }
+            rendered++;
+            frames++;
+            }
         }
 
     // Battery file
@@ -630,4 +691,3 @@ int CALLBACK WinMain(HINSTANCE hInstance,
     // Quit
     return 0;
     }
-#endif
