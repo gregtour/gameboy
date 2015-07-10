@@ -24,11 +24,6 @@ u32  GetSaveSize(u8* rom);
 void RunFrame();
 void KeyPress(u8 k);
 void KeyRelease(u8 k);
-void SetFrameSkip(u8 f);
-
-extern u8 gb_framecount;
-extern u8 gb_frameskip;
-extern u8 cgb_enable;
 
 // bios
 //#define DMG_BIOS_ENABLE    // optional logo: requires dmg.c
@@ -141,15 +136,13 @@ extern const u32 TAC_CYCLES[4];
 
 // framebuffers
 extern u8 gb_fb[LCD_HEIGHT][LCD_WIDTH];
-extern u16 cgb_fb[LCD_HEIGHT][LCD_WIDTH];
 
 // PALETTES
 extern u8 BGP[4];
 extern u8 OBJP[8];
 
-// CGB PALETTES
-extern u16 BCPD[4*8];
-extern u16 OCPD[4*8];
+extern u8 WY;
+extern u8 WYC;
 
 // LCD modes
 #define LCD_HBLANK          0x0

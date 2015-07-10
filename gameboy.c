@@ -5,6 +5,7 @@
  Credits: Greg Tourville
 */
 
+#include <string.h>
 #include "gameboy.h"
 
 // CART /////////////////////////////
@@ -60,17 +61,12 @@ u8 gb_frame = 0;
 u8 gb_rtc[5];
 u8 lcd_mode = 0;
 
-// CGB
-u8 cgb_enable = 0;
-u8 cgb_double = 0;
-
 // CPU
 u8 OP;
-u8 inst_cycles;
+/*u8 inst_cycles;*/
 
 // screen
 u8  gb_fb[LCD_HEIGHT][LCD_WIDTH];
-u16 cgb_fb[LCD_HEIGHT][LCD_WIDTH];
 
 // char debug_msg[0x100];
 
@@ -94,14 +90,6 @@ const u32 TAC_CYCLES[4] = {1024, 16, 64, 256};
 u8 BGP[4];
 u8 OBJP[8];
 
-// CGB PALETTES
-u16 BCPD[4*8];
-u16 OCPD[4*8];
-
-// 8-bit convenience
-u8* R_BCPD = (u8*)BCPD;
-u8* R_OCPD = (u8*)OCPD;
-
 // REGISTERS
 u8 R_P1;    u8 R_SB;    u8 R_SC;    u8 R_DIV;
 u8 R_TIMA;  u8 R_TMA;   u8 R_TAC;   u8 R_IF;
@@ -116,11 +104,6 @@ u8 R_WY;    u8 R_WX;    u8 R_IE;
 
 // SOUND
 u8 R_NR13;
-
-// CGB REGISTERS
-u8 R_HDMA;  u8 R_BCPS;  u8 R_OCPS;  u8 R_KEY1;
-u16 R_HDMAS;
-u16 R_HDMAD;
 
 // Read
 u8 READ(u16 addr)
@@ -231,10 +214,10 @@ u8 READ(u16 addr)
                 case 0x45: return R_LYC;
 
                 // CGB speed setting
-                case 0x4D: return (cgb_double << 7) | (R_KEY1 & 0x01);
+                case 0x4D: return 0;
 
                 // CGB vram bank
-                case 0x4F: return vram_bank;
+                case 0x4F: return 0;
                     
                 // DMA Register
                 case 0x46: return R_DMA;
@@ -247,20 +230,20 @@ u8 READ(u16 addr)
                 case 0x4B: return R_WX;
 
                 // CGB HDMA
-                case 0x51: return (R_HDMAS >> 8) & 0xFF;
-                case 0x52: return (R_HDMAS & 0xFF);
-                case 0x53: return (R_HDMAD >> 8) & 0xFF;
-                case 0x54: return (R_HDMAD & 0xFF);
-                case 0x55: return R_HDMA;
+                case 0x51: return 0;
+                case 0x52: return 0;
+                case 0x53: return 0;
+                case 0x54: return 0;
+                case 0x55: return 0;
 
                 // CGB Palette Registers
-                case 0x68: return R_BCPS;
-                case 0x69: return R_BCPD[R_BCPS & PAL_INDEX];
-                case 0x6A: return R_OCPS;
-                case 0x6B: return R_OCPD[R_OCPS & PAL_INDEX];
+                case 0x68: return 0;
+                case 0x69: return 0;
+                case 0x6A: return 0;
+                case 0x6B: return 0;
 
                 // CGB wram bank
-                case 0x70: return wram_bank;
+                case 0x70: return 0;
                     
                 // Interrupt Enable Register
                 case 0xFF: return R_IE;
@@ -284,7 +267,6 @@ void WRITE(u16 addr, u8 val)
             else if (gb_mbc > 0 && gb_cram)
                 cram_enable = ((val & 0x0F) == 0x0A);
             return;
-            
         case 0x2:
             if (gb_mbc == 5)
                 {
@@ -316,7 +298,6 @@ void WRITE(u16 addr, u8 val)
                 rom_bank = (val & 0x01) << 8 | (rom_bank & 0xFF);
             rom_bank = rom_bank % rom_banks;
             return;
-            
         case 0x4:
         case 0x5:
             if (gb_mbc == 1)
@@ -330,44 +311,35 @@ void WRITE(u16 addr, u8 val)
             else if (gb_mbc == 5)
                 cram_bank = (val & 0x0F);
             return;
-            
         case 0x6:
         case 0x7:
-            //if (gb_mbc == 1 && gb_cram)
             cram_mode = (val & 1);
             return;
-            
         case 0x8:
         case 0x9:
             VRAM[addr - VRAM_ADDR + vram_bank*VRAM_BANK_SIZE] = val;
             return;
-            
         case 0xA:
         case 0xB:
             if (gb_cram && cram_enable)
                 {
                 if (gb_mbc == 3 && cram_bank >= 0x08)
                     gb_rtc[cram_bank - 0x08] = val;
-                //else if ((cram_mode || gb_mbc != 1) && cram_bank < cram_banks)
                 else if (cram_mode && cram_bank < cram_banks)
                     CRAM[addr - CART_RAM_ADDR + cram_bank*CRAM_BANK_SIZE] = val;
                 else
                     CRAM[addr - CART_RAM_ADDR] = val;
                 }
             return;
-        
         case 0xC:
             WRAM[addr - WRAM_0_ADDR] = val;
             return;
-        
         case 0xD:
             WRAM[addr - WRAM_1_ADDR + wram_bank*WRAM_BANK_SIZE] = val;
             return;
-        
         case 0xE:
             WRAM[addr - ECHO_ADDR] = val;
             return;
-        
         case 0xF:
             if (addr < OAM_ADDR)
                 {
@@ -472,87 +444,8 @@ void WRITE(u16 addr, u8 val)
                 case 0x4A: R_WY = val;      return;
                 case 0x4B: R_WX = val;      return;
 
-                // CGB speed setting
-                case 0x4D:
-                    R_KEY1 = val & 0x1;
-                    return;
-
-                // CGB VRAM bank
-                case 0x4F:
-                    if (cgb_enable)
-                        {
-                        vram_bank = val & 0x1;
-                        }
-                    return;
-
                 // turn off boot rom
                 case 0x50: gb_bios_enable = 0; return;
-
-                // CGB HDMA
-                case 0x51:
-                    if (cgb_enable && (R_HDMA & HDMA_OFF))
-                        R_HDMAS = (val << 8) | (R_HDMAS & 0x00F0);
-                    return;
-                case 0x52:
-                    if (cgb_enable && (R_HDMA & HDMA_OFF))
-                        R_HDMAS = (R_HDMAS & 0xFF00) | (val & 0x00F0);
-                    return;
-                case 0x53:
-                    if (cgb_enable && (R_HDMA & HDMA_OFF))
-                        R_HDMAD = 0x8000 | ((val << 8) & 0x1F00) | (R_HDMAD & 0x00F0);
-                    return;
-                case 0x54:
-                    if (cgb_enable && (R_HDMA & HDMA_OFF))
-                        R_HDMAD = 0x8000 | (R_HDMAD & 0x1F00) | (val & 0x00F0);
-                    return;  
-                case 0x55:
-                    if (val & HDMA_HBLANK)
-                        {
-                        // set length to copy
-                        R_HDMA = val & HDMA_LENGTH;
-                        }
-                    else
-                        {
-                        if (R_HDMA & HDMA_OFF)
-                            {
-                            u16 i;
-                            // blocking DMA
-                            for (i = 0; i < (val + 1) * 0x10; i++)
-                                WRITE(R_HDMAD+i, READ(R_HDMAS+i));
-                            inst_cycles += 8 * (cgb_double + 1) * (val + 1);
-                            R_HDMA = 0xFF;
-                            }
-                        else
-                            {
-                            // disable hblank dma
-                            R_HDMA |= HDMA_OFF;
-                            }
-                        }
-                    return;
-
-                // CGB Palette Registers
-                case 0x68: R_BCPS = val;    return;
-                case 0x69:
-                    R_BCPD[R_BCPS & PAL_INDEX] = val;
-                    if (R_BCPS & PAL_AUTO_INCREMENT)
-                        R_BCPS = PAL_CONTROL_BITS & (R_BCPS + 1);
-                    return;
-                case 0x6A: R_OCPS = val;    return;
-                case 0x6B:
-                    R_OCPD[R_OCPS & PAL_INDEX] = val;
-                    if (R_OCPS & PAL_AUTO_INCREMENT)
-                        R_OCPS = PAL_CONTROL_BITS & (R_OCPS + 1);
-                    return;
-
-                // CGB WRAM bank
-                case 0x70:
-                    if (cgb_enable)
-                        {
-                        wram_bank = val & 0x7;
-                        if (wram_bank == 0x0)
-                            wram_bank = 0x1;
-                        }
-                    return;
                     
                 // Interrupt Enable Register
                 case 0xFF: R_IE = val;      return;
@@ -611,1568 +504,1726 @@ u16 NN; u32 NNNN;
 u8  D1, D2; // DAA
 
 void RunFrame()
-    {
-    gb_frame = 0;
-    while (!gb_frame)
-        StepCPU();
-    }
+	{
+	u32 next_count;
+	u32 local_inst_cycles;
+	u32 inst_cycles;
 
-void StepCPU()
-    {
-    // handle interrupts
-    if ((gb_ime || gb_halt) && (R_IF & R_IE & ANY_INTR))
-        {
-        // disable halt
-        gb_halt = 0;
+lbl_not_halted:
+	for (;;)
+		{
+		// handle interrupts
+		if ((gb_ime || gb_halt) && (R_IF & R_IE & ANY_INTR))
+			{
+			// disable halt
+			gb_halt = 0;
         
-        if (gb_ime)
-            {
-            // disable interrupts
-            gb_ime = 0;
+			if (gb_ime)
+				{
+				// disable interrupts
+				gb_ime = 0;
 
-            // PUSH PC
-            WRITE(--SP, PC >> 8);
-            WRITE(--SP, PC & 0xFF);
+				// PUSH PC
+				WRITE(SP-1, PC >> 8);
+				WRITE(SP-2, PC & 0xFF);
+				SP = SP - 2;
             
-            // Call interrupt handler
-            if (R_IF & R_IE & VBLANK_INTR)
-                {
-                PC = VBLANK_INTR_ADDR;
-                R_IF ^= VBLANK_INTR;
-                }
-            else if (R_IF & R_IE & LCDC_INTR)
-                {
-                PC = LCDC_INTR_ADDR;
-                R_IF ^= LCDC_INTR;
-                }
-            else if (R_IF & R_IE & TIMER_INTR)
-                {
-                PC = TIMER_INTR_ADDR;
-                R_IF ^= TIMER_INTR;
-                }
-            else if (R_IF & R_IE & SERIAL_INTR)
-                {
-                PC = SERIAL_INTR_ADDR;
-                R_IF ^= SERIAL_INTR;
-                }
-            else if (R_IF & R_IE & CONTROL_INTR)
-                {
-                PC = CONTROL_INTR_ADDR;
-                R_IF ^= CONTROL_INTR;
-                }
-            }
-        }
-    
-    // Execute one instruction
-    OP = (gb_halt ? 0x00 : READ(PC++));
-    inst_cycles = OP_CYCLES[OP];
-    switch (OP)
-        {
-        case 0x00: // NOP
-            break;
-        case 0x01: // LD BC, imm
-            R_C = READ(PC++);
-            R_B = READ(PC++);
-            break;
-        case 0x02: // LD (BC), A
-            WRITE(R_BC, R_A);
-            break;
-        case 0x03: // INC BC
-            NN = R_BC + 1;
-            R_B = NN >> 8;
-            R_C = NN & 0xFF;
-            break;
-        case 0x04: // INC B
-            R_B++;
-            F_Z = (R_B == 0x00);
-            F_N = 0;
-            F_H = ((R_B & 0x0F) == 0x00);
-            break;
-        case 0x05: // DEC B
-            R_B--;
-            F_Z = (R_B == 0x00);
-            F_N = 1;
-            F_H = ((R_B & 0x0F) == 0x0F);
-            break;
-        case 0x06: // LD B, imm
-            R_B = READ(PC++);
-            break;
-        case 0x07: // RLCA
-            R_A = (R_A << 1) | (R_A >> 7);
-            F_Z = 0;            
-            F_N = 0;
-            F_H = 0;
-            F_C = (R_A & 0x01);
-            break;
-        case 0x08: // LD (imm), SP
-            NN = READ(PC++) | READ(PC++) << 8;
-            WRITE(NN++, SP & 0xFF);
-            WRITE(NN, SP >> 8);
-            break;
-        case 0x09: // ADD HL, BC
-            NNNN = R_HL + R_BC;
-            F_N = 0;
-            F_H = (NNNN ^ R_HL ^ R_BC) & 0x1000 ? 1 : 0;
-            F_C = (NNNN & 0xFFFF0000) ? 1 : 0;
-            R_H = (NNNN & 0x0000FF00) >> 8;
-            R_L = (NNNN & 0x000000FF);
-            break;
-        case 0x0A: // LD A, (BC)
-            R_A = READ(R_BC);
-            break;
-        case 0x0B: // DEC BC
-            NN = R_BC - 1;
-            R_B = NN >> 8;
-            R_C = NN & 0xFF;
-            break;
-        case 0x0C: // INC C
-            R_C++;
-            F_Z = (R_C == 0x00);
-            F_N = 0;
-            F_H = ((R_C & 0x0F) == 0x00);
-            break;
-        case 0x0D: // DEC C
-            R_C--;
-            F_Z = (R_C == 0x00);
-            F_N = 1;
-            F_H = ((R_C & 0x0F) == 0x0F);
-            break;
-        case 0x0E: // LD C, imm
-            R_C = READ(PC++);
-            break;
-        case 0x0F: // RRCA
-            F_C = R_A & 0x01;
-            R_A = (R_A >> 1) | (R_A << 7);
-            F_Z = 0;
-            F_N = 0;
-            F_H = 0;
-            break;
-        case 0x10: // STOP
-            gb_halt = 1;
-            if (cgb_enable)
-                {
-                // check for CGB speed change
-                if (R_KEY1 & 0x01)
-                    {
-                    cgb_double = !cgb_double;
-                    R_KEY1 = 0x00;
-                    }
-                }
-            break;
-        case 0x11: // LD DE, imm
-            R_E = READ(PC++);
-            R_D = READ(PC++);
-            break;
-        case 0x12: // LD (DE), A
-            WRITE(R_DE, R_A);
-            break;
-        case 0x13: // INC DE
-            NN = R_DE + 1;
-            R_D = NN >> 8;
-            R_E = NN & 0xFF;
-            break;
-        case 0x14: // INC D
-            R_D++;
-            F_Z = (R_D == 0x00);
-            F_N = 0;
-            F_H =  ((R_D & 0x0F) == 0x00);
-            break;
-        case 0x15: // DEC D
-            R_D--;
-            F_Z = (R_D == 0x00);
-            F_N = 1;
-            F_H = ((R_D & 0x0F) == 0x0F);
-            break;
-        case 0x16: // LD D, imm
-            R_D = READ(PC++);
-            break;
-        case 0x17: // RLA
-            N = R_A;
-            R_A = R_A << 1 | F_C;
-            F_Z = 0;            
-            F_N = 0;
-            F_H = 0;
-            F_C = (N >> 7) & 0x01;
-            break;
-        case 0x18: // JR imm
-            SN = (s8)READ(PC++);
-            PC += SN;
-            break;
-        case 0x19: // ADD HL, DE
-            NNNN = R_HL + R_DE;
-            F_N = 0;
-            F_H = (NNNN ^ R_HL ^ R_DE) & 0x1000 ? 1 : 0;
-            F_C = (NNNN & 0xFFFF0000) ? 1 : 0;
-            R_H = (NNNN & 0x0000FF00) >> 8;
-            R_L = (NNNN & 0x000000FF);
-            break;
-        case 0x1A: // LD A, (DE)
-            R_A = READ(R_DE);
-            break;
-        case 0x1B: // DEC DE
-            NN = R_DE - 1;
-            R_D = NN >> 8;
-            R_E = NN & 0xFF;
-            break;
-        case 0x1C: // INC E
-            R_E++;
-            F_Z = (R_E == 0x00);
-            F_N = 0;
-            F_H = ((R_E & 0x0F) == 0x00);
-            break;
-        case 0x1D: // DEC E
-            R_E--;
-            F_Z = (R_E == 0x00);
-            F_N = 1;
-            F_H = ((R_E & 0x0F) == 0x0F);
-            break;
-        case 0x1E: // LD E, imm
-            R_E = READ(PC++);
-            break;
-        case 0x1F: // RRA
-            N = R_A;
-            R_A = R_A >> 1 | (F_C << 7);
-            F_Z = 0;
-            F_N = 0;
-            F_H = 0;
-            F_C = N & 0x1;
-            break;
-        case 0x20: // JP NZ, imm
-            SN = (s8)READ(PC++);
-            if (!F_Z)
-                {
-                PC += SN;
-                }
-            break;
-        case 0x21: // LD HL, imm
-            R_L = READ(PC++);
-            R_H = READ(PC++);
-            break;
-        case 0x22: // LDI (HL), A
-            WRITE(R_HL, R_A);
-            NN = R_HL + 1;
-            R_H = NN >> 8;
-            R_L = NN & 0xFF;
-            break;
-        case 0x23: // INC HL
-            NN = R_HL + 1;
-            R_H = NN >> 8;
-            R_L = NN & 0xFF;
-            break;
-        case 0x24: // INC H
-            R_H++;
-            F_Z = (R_H == 0x00);
-            F_N = 0;
-            F_H = ((R_H & 0x0F) == 0x00);
-            break;
-        case 0x25: // DEC H
-            R_H--;
-            F_Z = (R_H == 0x00);
-            F_N = 1;
-            F_H = ((R_H & 0x0F) == 0x0F);
-            break;
-        case 0x26: // LD H, imm
-            R_H = READ(PC++);
-            break;
-        case 0x27: // DAA
-            D1 = R_A >> 4;
-            D2 = R_A & 0x0F;
-            if (F_N)
-                {
-                if (F_H) D2 -= 6;
-                if (F_C) D1 -= 6;
-                if (D2>9) D2 -= 6;
-                if (D1 > 9)
-                    {
-                    D1 -= 6;
-                    F_C = 1;
-                    }
-                }
-            else
-                {
-                if (F_H) D2 += 6;
-                if (F_C) D1 += 6;
-                if (D2 > 9)
-                    {
-                    D2 -= 10;
-                    D1++;
-                    }
-                if (D1 > 9)
-                    {
-                    D1 -= 10;
-                    F_C = 1;
-                    }
-                }
-            R_A = ((D1 << 4) & 0xF0) | (D2 & 0x0F);
-            F_Z = (R_A == 0);
-            F_H = 0;
-            break;
-        case 0x28: // JP Z, imm
-            SN = (s8)READ(PC++);
-            if (F_Z)
-                {
-                PC += SN;
-                }
-            break;
-        case 0x29: // ADD HL, HL
-            NNNN = R_HL + R_HL;
-            F_N = 0;
-            F_H = (NNNN & 0x1000) ? 1 : 0;
-            F_C = (NNNN & 0xFFFF0000) ? 1 : 0;
-            R_H = (NNNN & 0x0000FF00) >> 8;
-            R_L = (NNNN & 0x000000FF);
-            break;
-        case 0x2A: // LDI A, (HL)
-            R_A = READ(R_HL);
-            NN = R_HL + 1;
-            R_H = NN >> 8;
-            R_L = NN & 0xFF;
-            break;
-        case 0x2B: // DEC HL
-            NN = R_HL - 1;
-            R_H = NN >> 8;
-            R_L = NN & 0xFF;
-            break;
-        case 0x2C: // INC L
-            R_L++;
-            F_Z = (R_L == 0x00);
-            F_N = 0;
-            F_H = ((R_L & 0x0F) == 0x00);
-            break;
-        case 0x2D: // DEC L
-            R_L--;
-            F_Z = (R_L == 0x00);
-            F_N = 1;
-            F_H = ((R_L & 0x0F) == 0x0F);
-            break;
-        case 0x2E: // LD L, imm
-            R_L = READ(PC++);
-            break;
-        case 0x2F: // CPL
-            R_A = R_A ^ 0xFF;
-            F_N = 1;
-            F_H = 1;
-            break;
-        case 0x30: // JP NC, imm
-            SN = (s8)READ(PC++);
-            if (!F_C)
-                {
-                PC += SN;
-                }
-            break;
-        case 0x31: // LD SP, imm
-            SP = READ(PC++);
-            SP |= READ(PC++) << 8;
-            break;
-        case 0x32: // LDD (HL), A
-            WRITE(R_HL, R_A);
-            NN = R_HL - 1;
-            R_H = NN >> 8;
-            R_L = NN & 0xFF;
-            break;
-        case 0x33: // INC SP
-            SP++;
-            break;
-        case 0x34: // INC (HL)
-            N = READ(R_HL) + 1;
-            F_Z = (N == 0x00);
-            F_N = 0;
-            F_H = ((N & 0x0F) == 0x00);
-            WRITE(R_HL, N);
-            break;
-        case 0x35: // DEC (HL)
-            N = READ(R_HL) - 1;
-            F_Z = (N == 0x00);
-            F_N = 1;
-            F_H = ((N & 0x0F) == 0x0F);
-            WRITE(R_HL, N);
-            break;
-        case 0x36: // LD (HL), imm
-            WRITE(R_HL, READ(PC++));
-            break;
-        case 0x37: // SCF
-            F_N = 0;
-            F_H = 0;
-            F_C = 1;
-            break;
-        case 0x38: // JP C, imm
-            SN = (s8)READ(PC++);
-            if (F_C)
-                {
-                PC += SN;
-                }
-            break;
-        case 0x39: // ADD HL, SP
-            NNNN = R_HL + SP;
-            F_N = 0;
-            F_H = (NNNN ^ R_HL ^ SP) & 0x1000 ? 1 : 0;
-            F_C = (NNNN & 0xFFFF0000) ? 1 : 0;
-            R_H = (NNNN & 0x0000FF00) >> 8;
-            R_L = (NNNN & 0x000000FF);
-            break;
-        case 0x3A: // LDD A, (HL)
-            R_A = READ(R_HL);
-            NN = R_HL - 1;
-            R_H = NN >> 8;
-            R_L = NN & 0xFF;
-            break;
-        case 0x3B: // DEC SP
-            SP--;
-            break;
-        case 0x3C: // INC A
-            R_A++;
-            F_Z = (R_A == 0x00);
-            F_N = 0;
-            F_H = ((R_A & 0x0F) == 0x00);
-            break;
-        case 0x3D: // DEC A
-            R_A--;
-            F_Z = (R_A == 0x00);
-            F_N = 1;
-            F_H = ((R_A & 0x0F) == 0x0F);
-            break;
-        case 0x3E: // LD A, imm
-            R_A = READ(PC++);
-            break;
-        case 0x3F: // CCF
-            F_N = 0;
-            F_H = 0;
-            F_C = F_C ^ 0x1;
-            break;
-        case 0x40: // LD B, B
-            break;
-        case 0x41: // LD B, C
-            R_B = R_C;
-            break;
-        case 0x42: // LD B, D
-            R_B = R_D;
-            break;
-        case 0x43: // LD B, E
-            R_B = R_E;
-            break;
-        case 0x44: // LD B, H
-            R_B = R_H;
-            break;
-        case 0x45: // LD B, L
-            R_B = R_L;
-            break;
-        case 0x46: // LD B, (HL)
-            R_B = READ(R_HL);
-            break;
-        case 0x47: // LD B, A
-            R_B = R_A;
-            break;
-        case 0x48: // LD C, B
-            R_C = R_B;
-            break;
-        case 0x49: // LD C, C
-            break;
-        case 0x4A: // LD C, D
-            R_C = R_D;
-            break;
-        case 0x4B: // LD C, E
-            R_C = R_E;
-            break;
-        case 0x4C: // LD C, H
-            R_C = R_H;
-            break;
-        case 0x4D: // LD C, L
-            R_C = R_L;
-            break;
-        case 0x4E: // LD C, (HL)
-            R_C = READ(R_HL);
-            break;
-        case 0x4F: // LD C, A
-            R_C = R_A;
-            break;
-        case 0x50: // LD D, B
-            R_D = R_B;
-            break;
-        case 0x51: // LD D, C
-            R_D = R_C;
-            break;
-        case 0x52: // LD D, D
-            break;
-        case 0x53: // LD D, E
-            R_D = R_E;
-            break;
-        case 0x54: // LD D, H
-            R_D = R_H;
-            break;
-        case 0x55: // LD D, L
-            R_D = R_L;
-            break;
-        case 0x56: // LD D, (HL)
-            R_D = READ(R_HL);
-            break;
-        case 0x57: // LD D, A
-            R_D = R_A;
-            break;
-        case 0x58: // LD E, B
-            R_E = R_B;
-            break;
-        case 0x59: // LD E, C
-            R_E = R_C;
-            break;
-        case 0x5A: // LD E, D
-            R_E = R_D;
-            break;
-        case 0x5B: // LD E, E
-            break;
-        case 0x5C: // LD E, H
-            R_E = R_H;
-            break;
-        case 0x5D: // LD E, L
-            R_E = R_L;
-            break;
-        case 0x5E: // LD E, (HL)
-            R_E = READ(R_HL);
-            break;
-        case 0x5F: // LD E, A
-            R_E = R_A;
-            break;
-        case 0x60: // LD H, B
-            R_H = R_B;
-            break;
-        case 0x61: // LD H, C
-            R_H = R_C;
-            break;
-        case 0x62: // LD H, D
-            R_H = R_D;
-            break;
-        case 0x63: // LD H, E
-            R_H = R_E;
-            break;
-        case 0x64: // LD H, H
-            break;
-        case 0x65: // LD H, L
-            R_H = R_L;
-            break;
-        case 0x66: // LD H, (HL)
-            R_H = READ(R_HL);
-            break;
-        case 0x67: // LD H, A
-            R_H = R_A;
-            break;
-        case 0x68: // LD L, B
-            R_L = R_B;
-            break;
-        case 0x69: // LD L, C
-            R_L = R_C;
-            break;
-        case 0x6A: // LD L, D
-            R_L = R_D;
-            break;
-        case 0x6B: // LD L, E
-            R_L = R_E;
-            break;
-        case 0x6C: // LD L, H
-            R_L = R_H;
-            break;
-        case 0x6D: // LD L, L
-            break;
-        case 0x6E: // LD L, (HL)
-            R_L = READ(R_HL);
-            break;
-        case 0x6F: // LD L, A
-            R_L = R_A;
-            break;
-        case 0x70: // LD (HL), B
-            WRITE(R_HL, R_B);
-            break;
-        case 0x71: // LD (HL), C
-            WRITE(R_HL, R_C);
-            break;
-        case 0x72: // LD (HL), D
-            WRITE(R_HL, R_D);
-            break;
-        case 0x73: // LD (HL), E
-            WRITE(R_HL, R_E);
-            break;
-        case 0x74: // LD (HL), H
-            WRITE(R_HL, R_H);
-            break;
-        case 0x75: // LD (HL), L
-            WRITE(R_HL, R_L);
-            break;
-        case 0x76: // HALT
-            gb_halt = 1;
-            break;
-        case 0x77: // LD (HL), A
-            WRITE(R_HL, R_A);
-            break;
-        case 0x78: // LD A, B
-            R_A = R_B;
-            break;
-        case 0x79: // LD A, C
-            R_A = R_C;
-            break;
-        case 0x7A: // LD A, D
-            R_A = R_D;
-            break;
-        case 0x7B: // LD A, E
-            R_A = R_E;
-            break;
-        case 0x7C: // LD A, H
-            R_A = R_H;
-            break;
-        case 0x7D: // LD A, L
-            R_A = R_L;
-            break;
-        case 0x7E: // LD A, (HL)
-            R_A = READ(R_HL);
-            break;
-        case 0x7F: // LD A, A
-            break;
-        case 0x80: // ADD A, B
-            NN = R_A + R_B;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 0;
-            F_H = (R_A ^ R_B ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0x81: // ADD A, C
-            NN = R_A + R_C;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 0;
-            F_H = (R_A ^ R_C ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0x82: // ADD A, D
-            NN = R_A + R_D;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 0;
-            F_H = (R_A ^ R_D ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0x83: // ADD A, E
-            NN = R_A + R_E;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 0;
-            F_H = (R_A ^ R_E ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0x84: // ADD A, H
-            NN = R_A + R_H;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 0;
-            F_H = (R_A ^ R_H ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0x85: // ADD A, L
-            NN = R_A + R_L;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 0;
-            F_H = (R_A ^ R_L ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0x86: // ADD A, (HL)
-            N = READ(R_HL);
-            NN = R_A + N;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 0;
-            F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0x87: // ADD A, A
-            NN = R_A + R_A;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 0;
-            F_H = NN & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0x88: // ADC A, B
-            N = R_B;
-            NN = R_A + N + F_C;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 0;
-            F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0x89: // ADC A, C
-            N = R_C;
-            NN = R_A + N + F_C;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 0;
-            F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0x8A: // ADC A, D
-            N = R_D;
-            NN = R_A + N + F_C;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 0;
-            F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0x8B: // ADC A, E
-            N = R_E;
-            NN = R_A + N + F_C;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 0;
-            F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0x8C: // ADC A, H
-            N = R_H;
-            NN = R_A + N + F_C;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 0;
-            F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0x8D: // ADC A, L
-            N = R_L;
-            NN = R_A + N + F_C;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 0;
-            F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0x8E: // ADC A, (HL)
-            N = READ(R_HL);
-            NN = R_A + N + F_C;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 0;
-            F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0x8F: // ADC A, A
-            N = R_A;
-            NN = R_A + N + F_C;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 0;
-            F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0x90: // SUB B
-            NN = R_A - R_B;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 1;
-            F_H = (R_A ^ R_B ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0x91: // SUB C
-            NN = R_A - R_C;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 1;
-            F_H = (R_A ^ R_C ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0x92: // SUB D
-            NN = R_A - R_D;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 1;
-            F_H = (R_A ^ R_D ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0x93: // SUB E
-            NN = R_A - R_E;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 1;
-            F_H = (R_A ^ R_E ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0x94: // SUB H
-            NN = R_A - R_H;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 1;
-            F_H = (R_A ^ R_H ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0x95: // SUB L
-            NN = R_A - R_L;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 1;
-            F_H = (R_A ^ R_L ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0x96: // SUB (HL)
-            N = READ(R_HL);
-            NN = R_A - N;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 1;
-            F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0x97: // SUB A
-            R_A = 0x00;
-            F_Z = 1;
-            F_N = 1;
-            F_H = 0;
-            F_C = 0;
-            break;
-        case 0x98: // SBC A, B
-            N = R_B;
-            NN = R_A - N - F_C;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 1;
-            F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0x99: // SBC A, C
-            N = R_C;
-            NN = R_A - N - F_C;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 1;
-            F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0x9A: // SBC A, D
-            N = R_D;
-            NN = R_A - N - F_C;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 1;
-            F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0x9B: // SBC A, E
-            N = R_E;
-            NN = R_A - N - F_C;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 1;
-            F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0x9C: // SBC A, H
-            N = R_H;
-            NN = R_A - N - F_C;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 1;
-            F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0x9D: // SBC A, L
-            N = R_L;
-            NN = R_A - N - F_C;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 1;
-            F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0x9E: // SBC A, (HL)
-            N = READ(R_HL);
-            NN = R_A - N - F_C;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 1;
-            F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0x9F: // SBC A, A
-            R_A = F_C ? 0xFF : 0x00;
-            F_Z = F_C ? 0x00 : 0x01;
-            F_N = 1;
-            F_H = F_C;
-            break;
-        case 0xA0: // AND B
-            R_A = R_A & R_B;
-            F_Z = (R_A == 0x00);
-            F_N = 0;
-            F_H = 1;
-            F_C = 0;
-            break;
-        case 0xA1: // AND C
-            R_A = R_A & R_C;
-            F_Z = (R_A == 0x00);
-            F_N = 0;
-            F_H = 1;
-            F_C = 0;
-            break;
-        case 0xA2: // AND D
-            R_A = R_A & R_D;
-            F_Z = (R_A == 0x00);
-            F_N = 0;
-            F_H = 1;
-            F_C = 0;
-            break;
-        case 0xA3: // AND E
-            R_A = R_A & R_E;
-            F_Z = (R_A == 0x00);
-            F_N = 0;
-            F_H = 1;
-            F_C = 0;
-            break;
-        case 0xA4: // AND H
-            R_A = R_A & R_H;
-            F_Z = (R_A == 0x00);
-            F_N = 0;
-            F_H = 1;
-            F_C = 0;
-            break;
-        case 0xA5: // AND L
-            R_A = R_A & R_L;
-            F_Z = (R_A == 0x00);
-            F_N = 0;
-            F_H = 1;
-            F_C = 0;
-            break;
-        case 0xA6: // AND (HL)
-            R_A = R_A & READ(R_HL);
-            F_Z = (R_A == 0x00);
-            F_N = 0;
-            F_H = 1;
-            F_C = 0;
-            break;
-        case 0xA7: // AND A
-            F_Z = (R_A == 0x00);
-            F_N = 0;
-            F_H = 1;
-            F_C = 0;
-            break;
-        case 0xA8: // XOR B
-            R_A = R_A ^ R_B;
-            F_Z = (R_A == 0x00);
-            F_N = 0;
-            F_H = 0;
-            F_C = 0;
-            break;
-        case 0xA9: // XOR C
-            R_A = R_A ^ R_C;
-            F_Z = (R_A == 0x00);
-            F_N = 0;
-            F_H = 0;
-            F_C = 0;
-            break;
-        case 0xAA: // XOR D
-            R_A = R_A ^ R_D;
-            F_Z = (R_A == 0x00);
-            F_N = 0;
-            F_H = 0;
-            F_C = 0;
-            break;
-        case 0xAB: // XOR E
-            R_A = R_A ^ R_E;
-            F_Z = (R_A == 0x00);
-            F_N = 0;
-            F_H = 0;
-            F_C = 0;
-            break;
-        case 0xAC: // XOR H
-            R_A = R_A ^ R_H;
-            F_Z = (R_A == 0x00);
-            F_N = 0;
-            F_H = 0;
-            F_C = 0;
-            break;
-        case 0xAD: // XOR L
-            R_A = R_A ^ R_L;
-            F_Z = (R_A == 0x00);
-            F_N = 0;
-            F_H = 0;
-            F_C = 0;
-            break;
-        case 0xAE: // XOR (HL)
-            R_A = R_A ^ READ(R_HL);
-            F_Z = (R_A == 0x00);
-            F_N = 0;
-            F_H = 0;
-            F_C = 0;
-            break;
-        case 0xAF: // XOR A
-            R_A = 0x00;
-            F_Z = 1;
-            F_N = 0;
-            F_H = 0;
-            F_C = 0;
-            break;
-        case 0xB0: // OR B
-            R_A = R_A | R_B;
-            F_Z = (R_A == 0x00);
-            F_N = 0;
-            F_H = 0;
-            F_C = 0;
-            break;
-        case 0xB1: // OR C
-            R_A = R_A | R_C;
-            F_Z = (R_A == 0x00);
-            F_N = 0;
-            F_H = 0;
-            F_C = 0;
-            break;
-        case 0xB2: // OR D
-            R_A = R_A | R_D;
-            F_Z = (R_A == 0x00);
-            F_N = 0;
-            F_H = 0;
-            F_C = 0;
-            break;
-        case 0xB3: // OR E
-            R_A = R_A | R_E;
-            F_Z = (R_A == 0x00);
-            F_N = 0;
-            F_H = 0;
-            F_C = 0;
-            break;
-        case 0xB4: // OR H
-            R_A = R_A | R_H;
-            F_Z = (R_A == 0x00);
-            F_N = 0;
-            F_H = 0;
-            F_C = 0;
-            break;
-        case 0xB5: // OR L
-            R_A = R_A | R_L;
-            F_Z = (R_A == 0x00);
-            F_N = 0;
-            F_H = 0;
-            F_C = 0;
-            break;
-        case 0xB6: // OR (HL)
-            R_A = R_A | READ(R_HL);
-            F_Z = (R_A == 0x00);
-            F_N = 0;
-            F_H = 0;
-            F_C = 0;
-            break;
-        case 0xB7: // OR A
-            F_Z = (R_A == 0x00);
-            F_N = 0;
-            F_H = 0;
-            F_C = 0;
-            break;
-        case 0xB8: // CP B
-            NN = R_A - R_B;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 1;
-            F_H = (R_A ^ R_B ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            break;
-        case 0xB9: // CP C
-            NN = R_A - R_C;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 1;
-            F_H = (R_A ^ R_C ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            break;
-        case 0xBA: // CP D
-            NN = R_A - R_D;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 1;
-            F_H = (R_A ^ R_D ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            break;
-        case 0xBB: // CP E
-            NN = R_A - R_E;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 1;
-            F_H = (R_A ^ R_E ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            break;
-        case 0xBC: // CP H
-            NN = R_A - R_H;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 1;
-            F_H = (R_A ^ R_H ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            break;
-        case 0xBD: // CP L
-            NN = R_A - R_L;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 1;
-            F_H = (R_A ^ R_L ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            break;
-        case 0xBE: // CP (HL)
-            N = READ(R_HL);
-            NN = R_A - N;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 1;
-            F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            break;
-        case 0xBF: // CP A
-            F_Z = 1;
-            F_N = 1;
-            F_H = 0;
-            F_C = 0;
-            break;
-        case 0xC0: // RET NZ
-            if (!F_Z)
-                {
-                NN = READ(SP++);
-                NN |= READ(SP++) << 8;
-                PC = NN;
-                }
-            break;
-        case 0xC1: // POP BC
-            R_C = READ(SP++);
-            R_B = READ(SP++);
-            break;
-        case 0xC2: // JP NZ, imm
-            NN = READ(PC++);
-            NN |= READ(PC++) << 8;
-            if (!F_Z)
-                {
-                PC = NN;
-                }
-            break;
-        case 0xC3: // JP imm
-            NN = READ(PC++);
-            NN |= READ(PC) << 8;
-            PC = NN;
-            break;
-        case 0xC4: // CALL NZ, imm
-            NN = READ(PC++);
-            NN |= READ(PC++) << 8;
-            if (!F_Z)
-                {
-                WRITE(--SP, PC >> 8);
-                WRITE(--SP, PC & 0xFF);
-                PC = NN;
-                }
-            break;
-        case 0xC5: // PUSH BC
-            WRITE(--SP, R_B);
-            WRITE(--SP, R_C);
-            break;
-        case 0xC6: // ADD A, imm
-            N = READ(PC++);
-            NN = R_A + N;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 0;
-            F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0xC7: // RST 0x0000
-            WRITE(--SP, PC >> 8);
-            WRITE(--SP, PC & 0xFF);
-            PC = 0x0000;
-            break;
-        case 0xC8: // RET Z
-            if (F_Z)
-                {
-                NN = READ(SP++);
-                NN |= READ(SP++) << 8;
-                PC = NN;
-                }
-            break;
-        case 0xC9: // RET
-            NN = READ(SP++);
-            NN |= READ(SP++) << 8;
-            PC = NN;
-            break;
-        case 0xCA: // JP Z, imm
-            NN = READ(PC++);
-            NN |= READ(PC++) << 8;
-            if (F_Z)
-                {
-                PC = NN;
-                }
-            break;
-        case 0xCB: // CB INST
-            ExecuteCB();
-            break;
-        case 0xCC: // CALL Z, imm
-            NN = READ(PC++);
-            NN |= READ(PC++) << 8;
-            if (F_Z)
-                {
-                WRITE(--SP, PC >> 8);
-                WRITE(--SP, PC & 0xFF);
-                PC = NN;
-                }
-            break;
-        case 0xCD: // CALL imm
-            NN = READ(PC++);
-            NN |= READ(PC++) << 8;
-            WRITE(--SP, PC >> 8);
-            WRITE(--SP, PC & 0xFF);
-            PC = NN;
-            break;
-        case 0xCE: // ADC A, imm
-            N = READ(PC++);
-            NN = R_A + N + F_C;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 0;
-            F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0xCF: // RST 0x0008
-            WRITE(--SP, PC >> 8);
-            WRITE(--SP, PC & 0xFF);
-            PC = 0x0008;
-            break;
-        case 0xD0: // RET NC
-            if (!F_C)
-                {
-                NN = READ(SP++);
-                NN |= READ(SP++) << 8;
-                PC = NN;
-                }
-            break;
-        case 0xD1: // POP DE
-            R_E = READ(SP++);
-            R_D = READ(SP++);
-            break;
-        case 0xD2: // JP NC, imm
-            NN = READ(PC++);
-            NN |= READ(PC++) << 8;
-            if (!F_C)
-                {
-                PC = NN;
-                }
-            break;
-        case 0xD3: // illegal
-            break;
-        case 0xD4: // CALL NC, imm
-            NN = READ(PC++);
-            NN |= READ(PC++) << 8;
-            if (!F_C)
-                {
-                WRITE(--SP, PC >> 8);
-                WRITE(--SP, PC & 0xFF);
-                PC = NN;
-                }
-            break;
-        case 0xD5: // PUSH DE
-            WRITE(--SP, R_D);
-            WRITE(--SP, R_E);
-            break;
-        case 0xD6: // SUB imm
-            N = READ(PC++);
-            NN = R_A - N;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 1;
-            F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0xD7: // RST 0x0010
-            WRITE(--SP, PC >> 8);
-            WRITE(--SP, PC & 0xFF);
-            PC = 0x0010;
-            break;
-        case 0xD8: // RET C
-            if (F_C)
-                {
-                NN = READ(SP++);
-                NN |= READ(SP++) << 8;
-                PC = NN;
-                }
-            break;
-        case 0xD9: // RETI
-            NN = READ(SP++);
-            NN |= READ(SP++) << 8;
-            PC = NN;
-            gb_ime = 1;
-            break;
-        case 0xDA: // JP C, imm
-            NN = READ(PC++);
-            NN |= READ(PC++) << 8;
-            if (F_C)
-                {
-                PC = NN;
-                }
-            break;
-        case 0xDB: // illegal
-            break;
-        case 0xDC: // CALL C, imm
-            NN = READ(PC++);
-            NN |= READ(PC++) << 8;
-            if (F_C)
-                {
-                WRITE(--SP, PC >> 8);
-                WRITE(--SP, PC & 0xFF);
-                PC = NN;
-                }
-            break;
-        case 0xDD: // illegal
-            break;
-        case 0xDE: // SBC A, imm
-            N = READ(PC++);
-            NN = R_A - N - F_C;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 1;
-            F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            R_A = NN & 0xFF;
-            break;
-        case 0xDF: // RST 0x0018
-            WRITE(--SP, PC >> 8);
-            WRITE(--SP, PC & 0xFF);
-            PC = 0x0018;
-            break;
-        case 0xE0: // LD (0xFF00+imm), A
-            WRITE(0xFF00 | READ(PC++), R_A);
-            break;
-        case 0xE1: // POP HL
-            R_L = READ(SP++);
-            R_H = READ(SP++);
-            break;
-        case 0xE2: // LD (C), A
-            WRITE(0xFF00 | R_C, R_A);
-            break;
-        case 0xE3: // illegal
-            break;
-        case 0xE4: // illegal
-            break;
-        case 0xE5: // PUSH HL
-            WRITE(--SP, R_H);
-            WRITE(--SP, R_L);
-            break;
-        case 0xE6: // AND imm
-            R_A = R_A & READ(PC++);
-            F_Z = (R_A == 0x00);
-            F_N = 0;
-            F_H = 1;
-            F_C = 0;
-            break;
-        case 0xE7: // RST 0x0020
-            WRITE(--SP, PC >> 8);
-            WRITE(--SP, PC & 0xFF);
-            PC = 0x0020;
-            break;
-        case 0xE8: // ADD SP, imm
-            SN = (s8)READ(PC++);
-            NN = SP + SN;
-            if (SN >= 0)
-                {
-                F_Z = 0;
-                F_N = 0;
-                F_H = ((SP ^ SN ^ NN) & 0x1000) ? 1 : 0;
-                F_C = (SP > NN);
-                }
-            else
-                {
-                F_Z = 0;
-                F_N = 0;
-                F_H = ((SP ^ SN ^ NN) & 0x1000) ? 1 : 0;
-                F_C = (SP < NN);
-                }
-            SP = NN;
-            break;
-        case 0xE9: // JP (HL)
-            PC = R_HL;
-            break;
-        case 0xEA: // LD (imm), A
-            WRITE(READ(PC++) | READ(PC++) << 8, R_A);
-            break;
-        case 0xEB: // illegal
-            break;
-        case 0xEC: // illegal
-            break;
-        case 0xED: // illegal
-            break;
-        case 0xEE: // XOR imm
-            R_A = R_A ^ READ(PC++);
-            F_Z = (R_A == 0x00);
-            F_N = 0;
-            F_H = 0;
-            F_C = 0;
-            break;
-        case 0xEF: // RST 0x0028
-            WRITE(--SP, PC >> 8);
-            WRITE(--SP, PC & 0xFF);
-            PC = 0x0028;
-            break;
-        case 0xF0: // LD A, (0xFF00+imm)
-            R_A = READ(0xFF00 | READ(PC++));
-            break;
-        case 0xF1: // POP AF
-            N = READ(SP++);
-            F_Z = (N >> 7) & 1;
-            F_N = (N >> 6) & 1;
-            F_H = (N >> 5) & 1;
-            F_C = (N >> 4) & 1;
-            R_A = READ(SP++);
-            break;
-        case 0xF2: // LD A, (C)
-            R_A = READ(0xFF00 | R_C);
-            break;
-        case 0xF3: // DI
-            gb_ime = 0;
-            break;
-        case 0xF4: // illegal
-            break;
-        case 0xF5: // PUSH AF
-            WRITE(--SP, R_A);
-            WRITE(--SP, F_Z << 7 | F_N << 6 | F_H << 5 | F_C << 4);
-            break;
-        case 0xF6: // OR imm
-            R_A = R_A | READ(PC++);
-            F_Z = (R_A == 0x00);
-            F_N = 0;
-            F_H = 0;
-            F_C = 0;
-            break;
-        case 0xF7: // RST 0x0030
-            WRITE(--SP, PC >> 8);
-            WRITE(--SP, PC & 0xFF);
-            PC = 0x0030;
-            break;
-        case 0xF8: // LD HL, SP+/-imm
-            SN = (s8)READ(PC++);
-            NN = SP + SN;
-            if (SN >= 0)
-                {
-                F_Z = 0;
-                F_N = 0;
-                F_H = ((SP ^ SN ^ NN) & 0x1000) ? 1 : 0;
-                F_C = (SP > NN);
-                }
-            else
-                {
-                F_Z = 0;
-                F_N = 0;
-                F_H = ((SP ^ SN ^ NN) & 0x1000) ? 1 : 0;
-                F_C = (SP < NN);
-                }
-            R_H = (NN & 0xFF00) >> 8;
-            R_L = (NN & 0x00FF);
-            break;
-        case 0xF9: // LD SP, HL
-            SP = R_HL;
-            break;
-        case 0xFA: // LD A, (imm)
-            R_A = READ(READ(PC++) | READ(PC++) << 8);
-            break;
-        case 0xFB: // EI
-            gb_ime = 1;
-            break;
-        case 0xFC: // illegal
-            break;
-        case 0xFD: // illegal
-            break;
-        case 0xFE: // CP imm
-            N = READ(PC++);
-            NN = R_A - N;
-            F_Z = ((NN & 0xFF) == 0x00);
-            F_N = 1;
-            F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
-            F_C = (NN & 0xFF00) ? 1 : 0;
-            break;
-        case 0xFF: // RST 0x0038
-            WRITE(--SP, PC >> 8);
-            WRITE(--SP, PC & 0xFF);
-            PC = 0x0038;
-            break;
-        }
-    
-    // CPU timing
-    cpu_count += inst_cycles;
-    
-    // LCD timing
-    lcd_count += inst_cycles;
-    // New scanline
-    if (lcd_count > LCD_LINE_CYCLES * (cgb_double + 1))
-        {
-        lcd_count -= LCD_LINE_CYCLES * (cgb_double + 1);
+				// Call interrupt handler
+				if (R_IF & R_IE & VBLANK_INTR)
+					{
+					PC = VBLANK_INTR_ADDR;
+					R_IF ^= VBLANK_INTR;
+					}
+				else if (R_IF & R_IE & LCDC_INTR)
+					{
+					PC = LCDC_INTR_ADDR;
+					R_IF ^= LCDC_INTR;
+					}
+				else if (R_IF & R_IE & TIMER_INTR)
+					{
+					PC = TIMER_INTR_ADDR;
+					R_IF ^= TIMER_INTR;
+					}
+				else if (R_IF & R_IE & SERIAL_INTR)
+					{
+					PC = SERIAL_INTR_ADDR;
+					R_IF ^= SERIAL_INTR;
+					}
+				else if (R_IF & R_IE & CONTROL_INTR)
+					{
+					PC = CONTROL_INTR_ADDR;
+					R_IF ^= CONTROL_INTR;
+					}
+				}
+			}
 
-        // LYC update
-        if (R_LY == R_LYC)
-            {
-            R_STAT |= STAT_LYC_COINC;
-            if (R_STAT & STAT_LYC_INTR)
-                R_IF |= LCDC_INTR;
-            }
-        else
-            R_STAT &= 0xFB;
+		if (gb_halt) goto lbl_halted;
 
-        // next line
-        R_LY = (R_LY + 1) % LCD_VERT_LINES;
+
+		// find out how many instructions we can run in a row
+		next_count = LCD_LINE_CYCLES - lcd_count + 1;
+		if (lcd_mode == LCD_HBLANK) {
+			next_count = MIN(next_count, LCD_MODE_2_CYCLES - lcd_count);
+		} else if (lcd_mode == LCD_SEARCH_OAM) {
+			next_count = MIN(next_count, LCD_MODE_3_CYCLES - lcd_count);
+		}
+		next_count = MIN(next_count, DIV_CYCLES - div_count + 1);
+    
+		for (inst_cycles = 0; 
+			 inst_cycles < next_count; 
+			 inst_cycles += local_inst_cycles)
+			{
+			// Execute one instruction
+			OP = READ(PC++);
+			local_inst_cycles = /*inst_cycles =*/ OP_CYCLES[OP];
+			switch (OP)
+				{
+				case 0x00: // NOP
+					break;
+				case 0x01: // LD BC, imm
+					R_C = READ(PC++);
+					R_B = READ(PC++);
+					break;
+				case 0x02: // LD (BC), A
+					WRITE(R_BC, R_A);
+					break;
+				case 0x03: // INC BC
+					NN = R_BC + 1;
+					R_B = NN >> 8;
+					R_C = NN & 0xFF;
+					break;
+				case 0x04: // INC B
+					R_B++;
+					F_Z = (R_B == 0x00);
+					F_N = 0;
+					F_H = ((R_B & 0x0F) == 0x00);
+					break;
+				case 0x05: // DEC B
+					R_B--;
+					F_Z = (R_B == 0x00);
+					F_N = 1;
+					F_H = ((R_B & 0x0F) == 0x0F);
+					break;
+				case 0x06: // LD B, imm
+					R_B = READ(PC++);
+					break;
+				case 0x07: // RLCA
+					R_A = (R_A << 1) | (R_A >> 7);
+					F_Z = 0;            
+					F_N = 0;
+					F_H = 0;
+					F_C = (R_A & 0x01);
+					break;
+				case 0x08: // LD (imm), SP
+					NN = READ(PC++) | READ(PC++) << 8;
+					WRITE(NN++, SP & 0xFF);
+					WRITE(NN, SP >> 8);
+					break;
+				case 0x09: // ADD HL, BC
+					NNNN = R_HL + R_BC;
+					F_N = 0;
+					F_H = (NNNN ^ R_HL ^ R_BC) & 0x1000 ? 1 : 0;
+					F_C = (NNNN & 0xFFFF0000) ? 1 : 0;
+					R_H = (NNNN & 0x0000FF00) >> 8;
+					R_L = (NNNN & 0x000000FF);
+					break;
+				case 0x0A: // LD A, (BC)
+					R_A = READ(R_BC);
+					break;
+				case 0x0B: // DEC BC
+					NN = R_BC - 1;
+					R_B = NN >> 8;
+					R_C = NN & 0xFF;
+					break;
+				case 0x0C: // INC C
+					R_C++;
+					F_Z = (R_C == 0x00);
+					F_N = 0;
+					F_H = ((R_C & 0x0F) == 0x00);
+					break;
+				case 0x0D: // DEC C
+					R_C--;
+					F_Z = (R_C == 0x00);
+					F_N = 1;
+					F_H = ((R_C & 0x0F) == 0x0F);
+					break;
+				case 0x0E: // LD C, imm
+					R_C = READ(PC++);
+					break;
+				case 0x0F: // RRCA
+					F_C = R_A & 0x01;
+					R_A = (R_A >> 1) | (R_A << 7);
+					F_Z = 0;
+					F_N = 0;
+					F_H = 0;
+					break;
+				case 0x10: // STOP
+					gb_halt = 1;
+					goto lbl_halted;
+					break;
+				case 0x11: // LD DE, imm
+					R_E = READ(PC++);
+					R_D = READ(PC++);
+					break;
+				case 0x12: // LD (DE), A
+					WRITE(R_DE, R_A);
+					break;
+				case 0x13: // INC DE
+					NN = R_DE + 1;
+					R_D = NN >> 8;
+					R_E = NN & 0xFF;
+					break;
+				case 0x14: // INC D
+					R_D++;
+					F_Z = (R_D == 0x00);
+					F_N = 0;
+					F_H =  ((R_D & 0x0F) == 0x00);
+					break;
+				case 0x15: // DEC D
+					R_D--;
+					F_Z = (R_D == 0x00);
+					F_N = 1;
+					F_H = ((R_D & 0x0F) == 0x0F);
+					break;
+				case 0x16: // LD D, imm
+					R_D = READ(PC++);
+					break;
+				case 0x17: // RLA
+					N = R_A;
+					R_A = R_A << 1 | F_C;
+					F_Z = 0;            
+					F_N = 0;
+					F_H = 0;
+					F_C = (N >> 7) & 0x01;
+					break;
+				case 0x18: // JR imm
+					SN = (s8)READ(PC++);
+					PC += SN;
+					break;
+				case 0x19: // ADD HL, DE
+					NNNN = R_HL + R_DE;
+					F_N = 0;
+					F_H = (NNNN ^ R_HL ^ R_DE) & 0x1000 ? 1 : 0;
+					F_C = (NNNN & 0xFFFF0000) ? 1 : 0;
+					R_H = (NNNN & 0x0000FF00) >> 8;
+					R_L = (NNNN & 0x000000FF);
+					break;
+				case 0x1A: // LD A, (DE)
+					R_A = READ(R_DE);
+					break;
+				case 0x1B: // DEC DE
+					NN = R_DE - 1;
+					R_D = NN >> 8;
+					R_E = NN & 0xFF;
+					break;
+				case 0x1C: // INC E
+					R_E++;
+					F_Z = (R_E == 0x00);
+					F_N = 0;
+					F_H = ((R_E & 0x0F) == 0x00);
+					break;
+				case 0x1D: // DEC E
+					R_E--;
+					F_Z = (R_E == 0x00);
+					F_N = 1;
+					F_H = ((R_E & 0x0F) == 0x0F);
+					break;
+				case 0x1E: // LD E, imm
+					R_E = READ(PC++);
+					break;
+				case 0x1F: // RRA
+					N = R_A;
+					R_A = R_A >> 1 | (F_C << 7);
+					F_Z = 0;
+					F_N = 0;
+					F_H = 0;
+					F_C = N & 0x1;
+					break;
+				case 0x20: // JP NZ, imm
+					SN = (s8)READ(PC++);
+					if (!F_Z)
+						{
+						PC += SN;
+						}
+					break;
+				case 0x21: // LD HL, imm
+					R_L = READ(PC++);
+					R_H = READ(PC++);
+					break;
+				case 0x22: // LDI (HL), A
+					WRITE(R_HL, R_A);
+					NN = R_HL + 1;
+					R_H = NN >> 8;
+					R_L = NN & 0xFF;
+					break;
+				case 0x23: // INC HL
+					NN = R_HL + 1;
+					R_H = NN >> 8;
+					R_L = NN & 0xFF;
+					break;
+				case 0x24: // INC H
+					R_H++;
+					F_Z = (R_H == 0x00);
+					F_N = 0;
+					F_H = ((R_H & 0x0F) == 0x00);
+					break;
+				case 0x25: // DEC H
+					R_H--;
+					F_Z = (R_H == 0x00);
+					F_N = 1;
+					F_H = ((R_H & 0x0F) == 0x0F);
+					break;
+				case 0x26: // LD H, imm
+					R_H = READ(PC++);
+					break;
+				case 0x27: // DAA
+					D1 = R_A >> 4;
+					D2 = R_A & 0x0F;
+					if (F_N)
+						{
+						if (F_H) D2 -= 6;
+						if (F_C) D1 -= 6;
+						if (D2>9) D2 -= 6;
+						if (D1 > 9)
+							{
+							D1 -= 6;
+							F_C = 1;
+							}
+						}
+					else
+						{
+						if (F_H) D2 += 6;
+						if (F_C) D1 += 6;
+						if (D2 > 9)
+							{
+							D2 -= 10;
+							D1++;
+							}
+						if (D1 > 9)
+							{
+							D1 -= 10;
+							F_C = 1;
+							}
+						}
+					R_A = ((D1 << 4) & 0xF0) | (D2 & 0x0F);
+					F_Z = (R_A == 0);
+					F_H = 0;
+					break;
+				case 0x28: // JP Z, imm
+					SN = (s8)READ(PC++);
+					if (F_Z)
+						{
+						PC += SN;
+						}
+					break;
+				case 0x29: // ADD HL, HL
+					NNNN = R_HL + R_HL;
+					F_N = 0;
+					F_H = (NNNN & 0x1000) ? 1 : 0;
+					F_C = (NNNN & 0xFFFF0000) ? 1 : 0;
+					R_H = (NNNN & 0x0000FF00) >> 8;
+					R_L = (NNNN & 0x000000FF);
+					break;
+				case 0x2A: // LDI A, (HL)
+					R_A = READ(R_HL);
+					NN = R_HL + 1;
+					R_H = NN >> 8;
+					R_L = NN & 0xFF;
+					break;
+				case 0x2B: // DEC HL
+					NN = R_HL - 1;
+					R_H = NN >> 8;
+					R_L = NN & 0xFF;
+					break;
+				case 0x2C: // INC L
+					R_L++;
+					F_Z = (R_L == 0x00);
+					F_N = 0;
+					F_H = ((R_L & 0x0F) == 0x00);
+					break;
+				case 0x2D: // DEC L
+					R_L--;
+					F_Z = (R_L == 0x00);
+					F_N = 1;
+					F_H = ((R_L & 0x0F) == 0x0F);
+					break;
+				case 0x2E: // LD L, imm
+					R_L = READ(PC++);
+					break;
+				case 0x2F: // CPL
+					R_A = R_A ^ 0xFF;
+					F_N = 1;
+					F_H = 1;
+					break;
+				case 0x30: // JP NC, imm
+					SN = (s8)READ(PC++);
+					if (!F_C)
+						{
+						PC += SN;
+						}
+					break;
+				case 0x31: // LD SP, imm
+					SP = READ(PC++);
+					SP |= READ(PC++) << 8;
+					break;
+				case 0x32: // LDD (HL), A
+					WRITE(R_HL, R_A);
+					NN = R_HL - 1;
+					R_H = NN >> 8;
+					R_L = NN & 0xFF;
+					break;
+				case 0x33: // INC SP
+					SP++;
+					break;
+				case 0x34: // INC (HL)
+					N = READ(R_HL) + 1;
+					F_Z = (N == 0x00);
+					F_N = 0;
+					F_H = ((N & 0x0F) == 0x00);
+					WRITE(R_HL, N);
+					break;
+				case 0x35: // DEC (HL)
+					N = READ(R_HL) - 1;
+					F_Z = (N == 0x00);
+					F_N = 1;
+					F_H = ((N & 0x0F) == 0x0F);
+					WRITE(R_HL, N);
+					break;
+				case 0x36: // LD (HL), imm
+					WRITE(R_HL, READ(PC++));
+					break;
+				case 0x37: // SCF
+					F_N = 0;
+					F_H = 0;
+					F_C = 1;
+					break;
+				case 0x38: // JP C, imm
+					SN = (s8)READ(PC++);
+					if (F_C)
+						{
+						PC += SN;
+						}
+					break;
+				case 0x39: // ADD HL, SP
+					NNNN = R_HL + SP;
+					F_N = 0;
+					F_H = (NNNN ^ R_HL ^ SP) & 0x1000 ? 1 : 0;
+					F_C = (NNNN & 0xFFFF0000) ? 1 : 0;
+					R_H = (NNNN & 0x0000FF00) >> 8;
+					R_L = (NNNN & 0x000000FF);
+					break;
+				case 0x3A: // LDD A, (HL)
+					R_A = READ(R_HL);
+					NN = R_HL - 1;
+					R_H = NN >> 8;
+					R_L = NN & 0xFF;
+					break;
+				case 0x3B: // DEC SP
+					SP--;
+					break;
+				case 0x3C: // INC A
+					R_A++;
+					F_Z = (R_A == 0x00);
+					F_N = 0;
+					F_H = ((R_A & 0x0F) == 0x00);
+					break;
+				case 0x3D: // DEC A
+					R_A--;
+					F_Z = (R_A == 0x00);
+					F_N = 1;
+					F_H = ((R_A & 0x0F) == 0x0F);
+					break;
+				case 0x3E: // LD A, imm
+					R_A = READ(PC++);
+					break;
+				case 0x3F: // CCF
+					F_N = 0;
+					F_H = 0;
+					F_C = F_C ^ 0x1;
+					break;
+				case 0x40: // LD B, B
+					break;
+				case 0x41: // LD B, C
+					R_B = R_C;
+					break;
+				case 0x42: // LD B, D
+					R_B = R_D;
+					break;
+				case 0x43: // LD B, E
+					R_B = R_E;
+					break;
+				case 0x44: // LD B, H
+					R_B = R_H;
+					break;
+				case 0x45: // LD B, L
+					R_B = R_L;
+					break;
+				case 0x46: // LD B, (HL)
+					R_B = READ(R_HL);
+					break;
+				case 0x47: // LD B, A
+					R_B = R_A;
+					break;
+				case 0x48: // LD C, B
+					R_C = R_B;
+					break;
+				case 0x49: // LD C, C
+					break;
+				case 0x4A: // LD C, D
+					R_C = R_D;
+					break;
+				case 0x4B: // LD C, E
+					R_C = R_E;
+					break;
+				case 0x4C: // LD C, H
+					R_C = R_H;
+					break;
+				case 0x4D: // LD C, L
+					R_C = R_L;
+					break;
+				case 0x4E: // LD C, (HL)
+					R_C = READ(R_HL);
+					break;
+				case 0x4F: // LD C, A
+					R_C = R_A;
+					break;
+				case 0x50: // LD D, B
+					R_D = R_B;
+					break;
+				case 0x51: // LD D, C
+					R_D = R_C;
+					break;
+				case 0x52: // LD D, D
+					break;
+				case 0x53: // LD D, E
+					R_D = R_E;
+					break;
+				case 0x54: // LD D, H
+					R_D = R_H;
+					break;
+				case 0x55: // LD D, L
+					R_D = R_L;
+					break;
+				case 0x56: // LD D, (HL)
+					R_D = READ(R_HL);
+					break;
+				case 0x57: // LD D, A
+					R_D = R_A;
+					break;
+				case 0x58: // LD E, B
+					R_E = R_B;
+					break;
+				case 0x59: // LD E, C
+					R_E = R_C;
+					break;
+				case 0x5A: // LD E, D
+					R_E = R_D;
+					break;
+				case 0x5B: // LD E, E
+					break;
+				case 0x5C: // LD E, H
+					R_E = R_H;
+					break;
+				case 0x5D: // LD E, L
+					R_E = R_L;
+					break;
+				case 0x5E: // LD E, (HL)
+					R_E = READ(R_HL);
+					break;
+				case 0x5F: // LD E, A
+					R_E = R_A;
+					break;
+				case 0x60: // LD H, B
+					R_H = R_B;
+					break;
+				case 0x61: // LD H, C
+					R_H = R_C;
+					break;
+				case 0x62: // LD H, D
+					R_H = R_D;
+					break;
+				case 0x63: // LD H, E
+					R_H = R_E;
+					break;
+				case 0x64: // LD H, H
+					break;
+				case 0x65: // LD H, L
+					R_H = R_L;
+					break;
+				case 0x66: // LD H, (HL)
+					R_H = READ(R_HL);
+					break;
+				case 0x67: // LD H, A
+					R_H = R_A;
+					break;
+				case 0x68: // LD L, B
+					R_L = R_B;
+					break;
+				case 0x69: // LD L, C
+					R_L = R_C;
+					break;
+				case 0x6A: // LD L, D
+					R_L = R_D;
+					break;
+				case 0x6B: // LD L, E
+					R_L = R_E;
+					break;
+				case 0x6C: // LD L, H
+					R_L = R_H;
+					break;
+				case 0x6D: // LD L, L
+					break;
+				case 0x6E: // LD L, (HL)
+					R_L = READ(R_HL);
+					break;
+				case 0x6F: // LD L, A
+					R_L = R_A;
+					break;
+				case 0x70: // LD (HL), B
+					WRITE(R_HL, R_B);
+					break;
+				case 0x71: // LD (HL), C
+					WRITE(R_HL, R_C);
+					break;
+				case 0x72: // LD (HL), D
+					WRITE(R_HL, R_D);
+					break;
+				case 0x73: // LD (HL), E
+					WRITE(R_HL, R_E);
+					break;
+				case 0x74: // LD (HL), H
+					WRITE(R_HL, R_H);
+					break;
+				case 0x75: // LD (HL), L
+					WRITE(R_HL, R_L);
+					break;
+				case 0x76: // HALT
+					gb_halt = 1;
+					break;
+				case 0x77: // LD (HL), A
+					WRITE(R_HL, R_A);
+					break;
+				case 0x78: // LD A, B
+					R_A = R_B;
+					break;
+				case 0x79: // LD A, C
+					R_A = R_C;
+					break;
+				case 0x7A: // LD A, D
+					R_A = R_D;
+					break;
+				case 0x7B: // LD A, E
+					R_A = R_E;
+					break;
+				case 0x7C: // LD A, H
+					R_A = R_H;
+					break;
+				case 0x7D: // LD A, L
+					R_A = R_L;
+					break;
+				case 0x7E: // LD A, (HL)
+					R_A = READ(R_HL);
+					break;
+				case 0x7F: // LD A, A
+					break;
+				case 0x80: // ADD A, B
+					NN = R_A + R_B;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 0;
+					F_H = (R_A ^ R_B ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0x81: // ADD A, C
+					NN = R_A + R_C;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 0;
+					F_H = (R_A ^ R_C ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0x82: // ADD A, D
+					NN = R_A + R_D;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 0;
+					F_H = (R_A ^ R_D ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0x83: // ADD A, E
+					NN = R_A + R_E;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 0;
+					F_H = (R_A ^ R_E ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0x84: // ADD A, H
+					NN = R_A + R_H;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 0;
+					F_H = (R_A ^ R_H ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0x85: // ADD A, L
+					NN = R_A + R_L;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 0;
+					F_H = (R_A ^ R_L ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0x86: // ADD A, (HL)
+					N = READ(R_HL);
+					NN = R_A + N;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 0;
+					F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0x87: // ADD A, A
+					NN = R_A + R_A;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 0;
+					F_H = NN & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0x88: // ADC A, B
+					N = R_B;
+					NN = R_A + N + F_C;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 0;
+					F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0x89: // ADC A, C
+					N = R_C;
+					NN = R_A + N + F_C;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 0;
+					F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0x8A: // ADC A, D
+					N = R_D;
+					NN = R_A + N + F_C;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 0;
+					F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0x8B: // ADC A, E
+					N = R_E;
+					NN = R_A + N + F_C;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 0;
+					F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0x8C: // ADC A, H
+					N = R_H;
+					NN = R_A + N + F_C;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 0;
+					F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0x8D: // ADC A, L
+					N = R_L;
+					NN = R_A + N + F_C;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 0;
+					F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0x8E: // ADC A, (HL)
+					N = READ(R_HL);
+					NN = R_A + N + F_C;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 0;
+					F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0x8F: // ADC A, A
+					N = R_A;
+					NN = R_A + N + F_C;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 0;
+					F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0x90: // SUB B
+					NN = R_A - R_B;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 1;
+					F_H = (R_A ^ R_B ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0x91: // SUB C
+					NN = R_A - R_C;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 1;
+					F_H = (R_A ^ R_C ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0x92: // SUB D
+					NN = R_A - R_D;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 1;
+					F_H = (R_A ^ R_D ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0x93: // SUB E
+					NN = R_A - R_E;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 1;
+					F_H = (R_A ^ R_E ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0x94: // SUB H
+					NN = R_A - R_H;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 1;
+					F_H = (R_A ^ R_H ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0x95: // SUB L
+					NN = R_A - R_L;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 1;
+					F_H = (R_A ^ R_L ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0x96: // SUB (HL)
+					N = READ(R_HL);
+					NN = R_A - N;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 1;
+					F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0x97: // SUB A
+					R_A = 0x00;
+					F_Z = 1;
+					F_N = 1;
+					F_H = 0;
+					F_C = 0;
+					break;
+				case 0x98: // SBC A, B
+					N = R_B;
+					NN = R_A - N - F_C;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 1;
+					F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0x99: // SBC A, C
+					N = R_C;
+					NN = R_A - N - F_C;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 1;
+					F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0x9A: // SBC A, D
+					N = R_D;
+					NN = R_A - N - F_C;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 1;
+					F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0x9B: // SBC A, E
+					N = R_E;
+					NN = R_A - N - F_C;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 1;
+					F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0x9C: // SBC A, H
+					N = R_H;
+					NN = R_A - N - F_C;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 1;
+					F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0x9D: // SBC A, L
+					N = R_L;
+					NN = R_A - N - F_C;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 1;
+					F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0x9E: // SBC A, (HL)
+					N = READ(R_HL);
+					NN = R_A - N - F_C;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 1;
+					F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0x9F: // SBC A, A
+					R_A = F_C ? 0xFF : 0x00;
+					F_Z = F_C ? 0x00 : 0x01;
+					F_N = 1;
+					F_H = F_C;
+					break;
+				case 0xA0: // AND B
+					R_A = R_A & R_B;
+					F_Z = (R_A == 0x00);
+					F_N = 0;
+					F_H = 1;
+					F_C = 0;
+					break;
+				case 0xA1: // AND C
+					R_A = R_A & R_C;
+					F_Z = (R_A == 0x00);
+					F_N = 0;
+					F_H = 1;
+					F_C = 0;
+					break;
+				case 0xA2: // AND D
+					R_A = R_A & R_D;
+					F_Z = (R_A == 0x00);
+					F_N = 0;
+					F_H = 1;
+					F_C = 0;
+					break;
+				case 0xA3: // AND E
+					R_A = R_A & R_E;
+					F_Z = (R_A == 0x00);
+					F_N = 0;
+					F_H = 1;
+					F_C = 0;
+					break;
+				case 0xA4: // AND H
+					R_A = R_A & R_H;
+					F_Z = (R_A == 0x00);
+					F_N = 0;
+					F_H = 1;
+					F_C = 0;
+					break;
+				case 0xA5: // AND L
+					R_A = R_A & R_L;
+					F_Z = (R_A == 0x00);
+					F_N = 0;
+					F_H = 1;
+					F_C = 0;
+					break;
+				case 0xA6: // AND (HL)
+					R_A = R_A & READ(R_HL);
+					F_Z = (R_A == 0x00);
+					F_N = 0;
+					F_H = 1;
+					F_C = 0;
+					break;
+				case 0xA7: // AND A
+					F_Z = (R_A == 0x00);
+					F_N = 0;
+					F_H = 1;
+					F_C = 0;
+					break;
+				case 0xA8: // XOR B
+					R_A = R_A ^ R_B;
+					F_Z = (R_A == 0x00);
+					F_N = 0;
+					F_H = 0;
+					F_C = 0;
+					break;
+				case 0xA9: // XOR C
+					R_A = R_A ^ R_C;
+					F_Z = (R_A == 0x00);
+					F_N = 0;
+					F_H = 0;
+					F_C = 0;
+					break;
+				case 0xAA: // XOR D
+					R_A = R_A ^ R_D;
+					F_Z = (R_A == 0x00);
+					F_N = 0;
+					F_H = 0;
+					F_C = 0;
+					break;
+				case 0xAB: // XOR E
+					R_A = R_A ^ R_E;
+					F_Z = (R_A == 0x00);
+					F_N = 0;
+					F_H = 0;
+					F_C = 0;
+					break;
+				case 0xAC: // XOR H
+					R_A = R_A ^ R_H;
+					F_Z = (R_A == 0x00);
+					F_N = 0;
+					F_H = 0;
+					F_C = 0;
+					break;
+				case 0xAD: // XOR L
+					R_A = R_A ^ R_L;
+					F_Z = (R_A == 0x00);
+					F_N = 0;
+					F_H = 0;
+					F_C = 0;
+					break;
+				case 0xAE: // XOR (HL)
+					R_A = R_A ^ READ(R_HL);
+					F_Z = (R_A == 0x00);
+					F_N = 0;
+					F_H = 0;
+					F_C = 0;
+					break;
+				case 0xAF: // XOR A
+					R_A = 0x00;
+					F_Z = 1;
+					F_N = 0;
+					F_H = 0;
+					F_C = 0;
+					break;
+				case 0xB0: // OR B
+					R_A = R_A | R_B;
+					F_Z = (R_A == 0x00);
+					F_N = 0;
+					F_H = 0;
+					F_C = 0;
+					break;
+				case 0xB1: // OR C
+					R_A = R_A | R_C;
+					F_Z = (R_A == 0x00);
+					F_N = 0;
+					F_H = 0;
+					F_C = 0;
+					break;
+				case 0xB2: // OR D
+					R_A = R_A | R_D;
+					F_Z = (R_A == 0x00);
+					F_N = 0;
+					F_H = 0;
+					F_C = 0;
+					break;
+				case 0xB3: // OR E
+					R_A = R_A | R_E;
+					F_Z = (R_A == 0x00);
+					F_N = 0;
+					F_H = 0;
+					F_C = 0;
+					break;
+				case 0xB4: // OR H
+					R_A = R_A | R_H;
+					F_Z = (R_A == 0x00);
+					F_N = 0;
+					F_H = 0;
+					F_C = 0;
+					break;
+				case 0xB5: // OR L
+					R_A = R_A | R_L;
+					F_Z = (R_A == 0x00);
+					F_N = 0;
+					F_H = 0;
+					F_C = 0;
+					break;
+				case 0xB6: // OR (HL)
+					R_A = R_A | READ(R_HL);
+					F_Z = (R_A == 0x00);
+					F_N = 0;
+					F_H = 0;
+					F_C = 0;
+					break;
+				case 0xB7: // OR A
+					F_Z = (R_A == 0x00);
+					F_N = 0;
+					F_H = 0;
+					F_C = 0;
+					break;
+				case 0xB8: // CP B
+					NN = R_A - R_B;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 1;
+					F_H = (R_A ^ R_B ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					break;
+				case 0xB9: // CP C
+					NN = R_A - R_C;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 1;
+					F_H = (R_A ^ R_C ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					break;
+				case 0xBA: // CP D
+					NN = R_A - R_D;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 1;
+					F_H = (R_A ^ R_D ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					break;
+				case 0xBB: // CP E
+					NN = R_A - R_E;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 1;
+					F_H = (R_A ^ R_E ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					break;
+				case 0xBC: // CP H
+					NN = R_A - R_H;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 1;
+					F_H = (R_A ^ R_H ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					break;
+				case 0xBD: // CP L
+					NN = R_A - R_L;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 1;
+					F_H = (R_A ^ R_L ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					break;
+				case 0xBE: // CP (HL)
+					N = READ(R_HL);
+					NN = R_A - N;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 1;
+					F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					break;
+				case 0xBF: // CP A
+					F_Z = 1;
+					F_N = 1;
+					F_H = 0;
+					F_C = 0;
+					break;
+				case 0xC0: // RET NZ
+					if (!F_Z)
+						{
+						NN = READ(SP++);
+						NN |= READ(SP++) << 8;
+						PC = NN;
+						}
+					break;
+				case 0xC1: // POP BC
+					R_C = READ(SP++);
+					R_B = READ(SP++);
+					break;
+				case 0xC2: // JP NZ, imm
+					NN = READ(PC++);
+					NN |= READ(PC++) << 8;
+					if (!F_Z)
+						{
+						PC = NN;
+						}
+					break;
+				case 0xC3: // JP imm
+					NN = READ(PC++);
+					NN |= READ(PC) << 8;
+					PC = NN;
+					break;
+				case 0xC4: // CALL NZ, imm
+					NN = READ(PC++);
+					NN |= READ(PC++) << 8;
+					if (!F_Z)
+						{
+						WRITE(--SP, PC >> 8);
+						WRITE(--SP, PC & 0xFF);
+						PC = NN;
+						}
+					break;
+				case 0xC5: // PUSH BC
+					WRITE(--SP, R_B);
+					WRITE(--SP, R_C);
+					break;
+				case 0xC6: // ADD A, imm
+					N = READ(PC++);
+					NN = R_A + N;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 0;
+					F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0xC7: // RST 0x0000
+					WRITE(--SP, PC >> 8);
+					WRITE(--SP, PC & 0xFF);
+					PC = 0x0000;
+					break;
+				case 0xC8: // RET Z
+					if (F_Z)
+						{
+						NN = READ(SP++);
+						NN |= READ(SP++) << 8;
+						PC = NN;
+						}
+					break;
+				case 0xC9: // RET
+					NN = READ(SP++);
+					NN |= READ(SP++) << 8;
+					PC = NN;
+					break;
+				case 0xCA: // JP Z, imm
+					NN = READ(PC++);
+					NN |= READ(PC++) << 8;
+					if (F_Z)
+						{
+						PC = NN;
+						}
+					break;
+				case 0xCB: // CB INST
+					ExecuteCB();
+					break;
+				case 0xCC: // CALL Z, imm
+					NN = READ(PC++);
+					NN |= READ(PC++) << 8;
+					if (F_Z)
+						{
+						WRITE(--SP, PC >> 8);
+						WRITE(--SP, PC & 0xFF);
+						PC = NN;
+						}
+					break;
+				case 0xCD: // CALL imm
+					NN = READ(PC++);
+					NN |= READ(PC++) << 8;
+					WRITE(--SP, PC >> 8);
+					WRITE(--SP, PC & 0xFF);
+					PC = NN;
+					break;
+				case 0xCE: // ADC A, imm
+					N = READ(PC++);
+					NN = R_A + N + F_C;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 0;
+					F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0xCF: // RST 0x0008
+					WRITE(--SP, PC >> 8);
+					WRITE(--SP, PC & 0xFF);
+					PC = 0x0008;
+					break;
+				case 0xD0: // RET NC
+					if (!F_C)
+						{
+						NN = READ(SP++);
+						NN |= READ(SP++) << 8;
+						PC = NN;
+						}
+					break;
+				case 0xD1: // POP DE
+					R_E = READ(SP++);
+					R_D = READ(SP++);
+					break;
+				case 0xD2: // JP NC, imm
+					NN = READ(PC++);
+					NN |= READ(PC++) << 8;
+					if (!F_C)
+						{
+						PC = NN;
+						}
+					break;
+				case 0xD3: // illegal
+					break;
+				case 0xD4: // CALL NC, imm
+					NN = READ(PC++);
+					NN |= READ(PC++) << 8;
+					if (!F_C)
+						{
+						WRITE(--SP, PC >> 8);
+						WRITE(--SP, PC & 0xFF);
+						PC = NN;
+						}
+					break;
+				case 0xD5: // PUSH DE
+					WRITE(--SP, R_D);
+					WRITE(--SP, R_E);
+					break;
+				case 0xD6: // SUB imm
+					N = READ(PC++);
+					NN = R_A - N;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 1;
+					F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0xD7: // RST 0x0010
+					WRITE(--SP, PC >> 8);
+					WRITE(--SP, PC & 0xFF);
+					PC = 0x0010;
+					break;
+				case 0xD8: // RET C
+					if (F_C)
+						{
+						NN = READ(SP++);
+						NN |= READ(SP++) << 8;
+						PC = NN;
+						}
+					break;
+				case 0xD9: // RETI
+					NN = READ(SP++);
+					NN |= READ(SP++) << 8;
+					PC = NN;
+					gb_ime = 1;
+					break;
+				case 0xDA: // JP C, imm
+					NN = READ(PC++);
+					NN |= READ(PC++) << 8;
+					if (F_C)
+						{
+						PC = NN;
+						}
+					break;
+				case 0xDB: // illegal
+					break;
+				case 0xDC: // CALL C, imm
+					NN = READ(PC++);
+					NN |= READ(PC++) << 8;
+					if (F_C)
+						{
+						WRITE(--SP, PC >> 8);
+						WRITE(--SP, PC & 0xFF);
+						PC = NN;
+						}
+					break;
+				case 0xDD: // illegal
+					break;
+				case 0xDE: // SBC A, imm
+					N = READ(PC++);
+					NN = R_A - N - F_C;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 1;
+					F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					R_A = NN & 0xFF;
+					break;
+				case 0xDF: // RST 0x0018
+					WRITE(--SP, PC >> 8);
+					WRITE(--SP, PC & 0xFF);
+					PC = 0x0018;
+					break;
+				case 0xE0: // LD (0xFF00+imm), A
+					WRITE(0xFF00 | READ(PC++), R_A);
+					break;
+				case 0xE1: // POP HL
+					R_L = READ(SP++);
+					R_H = READ(SP++);
+					break;
+				case 0xE2: // LD (C), A
+					WRITE(0xFF00 | R_C, R_A);
+					break;
+				case 0xE3: // illegal
+					break;
+				case 0xE4: // illegal
+					break;
+				case 0xE5: // PUSH HL
+					WRITE(--SP, R_H);
+					WRITE(--SP, R_L);
+					break;
+				case 0xE6: // AND imm
+					R_A = R_A & READ(PC++);
+					F_Z = (R_A == 0x00);
+					F_N = 0;
+					F_H = 1;
+					F_C = 0;
+					break;
+				case 0xE7: // RST 0x0020
+					WRITE(--SP, PC >> 8);
+					WRITE(--SP, PC & 0xFF);
+					PC = 0x0020;
+					break;
+				case 0xE8: // ADD SP, imm
+					SN = (s8)READ(PC++);
+					NN = SP + SN;
+					if (SN >= 0)
+						{
+						F_Z = 0;
+						F_N = 0;
+						F_H = ((SP ^ SN ^ NN) & 0x1000) ? 1 : 0;
+						F_C = (SP > NN);
+						}
+					else
+						{
+						F_Z = 0;
+						F_N = 0;
+						F_H = ((SP ^ SN ^ NN) & 0x1000) ? 1 : 0;
+						F_C = (SP < NN);
+						}
+					SP = NN;
+					break;
+				case 0xE9: // JP (HL)
+					PC = R_HL;
+					break;
+				case 0xEA: // LD (imm), A
+					WRITE(READ(PC++) | READ(PC++) << 8, R_A);
+					break;
+				case 0xEB: // illegal
+					break;
+				case 0xEC: // illegal
+					break;
+				case 0xED: // illegal
+					break;
+				case 0xEE: // XOR imm
+					R_A = R_A ^ READ(PC++);
+					F_Z = (R_A == 0x00);
+					F_N = 0;
+					F_H = 0;
+					F_C = 0;
+					break;
+				case 0xEF: // RST 0x0028
+					WRITE(--SP, PC >> 8);
+					WRITE(--SP, PC & 0xFF);
+					PC = 0x0028;
+					break;
+				case 0xF0: // LD A, (0xFF00+imm)
+					R_A = READ(0xFF00 | READ(PC++));
+					break;
+				case 0xF1: // POP AF
+					N = READ(SP++);
+					F_Z = (N >> 7) & 1;
+					F_N = (N >> 6) & 1;
+					F_H = (N >> 5) & 1;
+					F_C = (N >> 4) & 1;
+					R_A = READ(SP++);
+					break;
+				case 0xF2: // LD A, (C)
+					R_A = READ(0xFF00 | R_C);
+					break;
+				case 0xF3: // DI
+					gb_ime = 0;
+					break;
+				case 0xF4: // illegal
+					break;
+				case 0xF5: // PUSH AF
+					WRITE(--SP, R_A);
+					WRITE(--SP, F_Z << 7 | F_N << 6 | F_H << 5 | F_C << 4);
+					break;
+				case 0xF6: // OR imm
+					R_A = R_A | READ(PC++);
+					F_Z = (R_A == 0x00);
+					F_N = 0;
+					F_H = 0;
+					F_C = 0;
+					break;
+				case 0xF7: // RST 0x0030
+					WRITE(--SP, PC >> 8);
+					WRITE(--SP, PC & 0xFF);
+					PC = 0x0030;
+					break;
+				case 0xF8: // LD HL, SP+/-imm
+					SN = (s8)READ(PC++);
+					NN = SP + SN;
+					if (SN >= 0)
+						{
+						F_Z = 0;
+						F_N = 0;
+						F_H = ((SP ^ SN ^ NN) & 0x1000) ? 1 : 0;
+						F_C = (SP > NN);
+						}
+					else
+						{
+						F_Z = 0;
+						F_N = 0;
+						F_H = ((SP ^ SN ^ NN) & 0x1000) ? 1 : 0;
+						F_C = (SP < NN);
+						}
+					R_H = (NN & 0xFF00) >> 8;
+					R_L = (NN & 0x00FF);
+					break;
+				case 0xF9: // LD SP, HL
+					SP = R_HL;
+					break;
+				case 0xFA: // LD A, (imm)
+					R_A = READ(READ(PC++) | READ(PC++) << 8);
+					break;
+				case 0xFB: // EI
+					gb_ime = 1;
+					break;
+				case 0xFC: // illegal
+					break;
+				case 0xFD: // illegal
+					break;
+				case 0xFE: // CP imm
+					N = READ(PC++);
+					NN = R_A - N;
+					F_Z = ((NN & 0xFF) == 0x00);
+					F_N = 1;
+					F_H = (R_A ^ N ^ NN) & 0x10 ? 1 : 0;
+					F_C = (NN & 0xFF00) ? 1 : 0;
+					break;
+				case 0xFF: // RST 0x0038
+					WRITE(--SP, PC >> 8);
+					WRITE(--SP, PC & 0xFF);
+					PC = 0x0038;
+					break;
+				}
+
+			// timer values could change mid-frame so this must be
+			// internal to the loop
+			// TIMA register timing
+			if (tac_enable)
+				{
+				tima_count += local_inst_cycles;
+				if (tima_count > TAC_CYCLES[tac_rate])
+					{
+					tima_count -= TAC_CYCLES[tac_rate];
+					R_TIMA++;
+					if (R_TIMA == 0)
+						{
+						R_IF |= TIMER_INTR;
+						R_TIMA = R_TMA;
+						}
+					}
+				}
+			}
+    
+		// CPU timing
+		cpu_count += inst_cycles;
+
+		// DIV register timing
+		div_count += inst_cycles;
+		if (div_count > DIV_CYCLES)
+			{
+			R_DIV++;
+			div_count -= DIV_CYCLES;
+			}
         
-        // VBLANK Start
-        if (R_LY == LCD_HEIGHT)
-            {
-            //OutputDebugString("---- VBLANK ----\n");
-            lcd_mode = LCD_VBLANK;
-            gb_frame = 1;
+		// LCD timing
+		lcd_count += inst_cycles;
+		// New scanline
+		if (lcd_count > LCD_LINE_CYCLES)
+			{
+			lcd_count -= LCD_LINE_CYCLES;
+
+			// LYC update
+			if (R_LY == R_LYC)
+				{
+				R_STAT |= STAT_LYC_COINC;
+				if (R_STAT & STAT_LYC_INTR)
+					R_IF |= LCDC_INTR;
+				}
+			else
+				{
+				R_STAT &= 0xFB;
+				}
+
+			// next line
+			R_LY = (R_LY + 1) % LCD_VERT_LINES;
+        
+			// VBLANK Start
+			if (R_LY == LCD_HEIGHT)
+				{
+				//OutputDebugString("---- VBLANK ----\n");
+				lcd_mode = LCD_VBLANK;
+				//gb_frame = 1;
             
-            R_IF |= VBLANK_INTR;
-            if (R_STAT & STAT_MODE_1_INTR)
-                R_IF |= LCDC_INTR;
-            }
-        // normal line
-        else if (R_LY < LCD_HEIGHT)
-            {
-            if (R_LY == 0)
-                LCDStart();
-            lcd_mode = LCD_HBLANK;
-            if (R_STAT & STAT_MODE_0_INTR)
-                R_IF |= LCDC_INTR;
+				R_IF |= VBLANK_INTR;
+				if (R_STAT & STAT_MODE_1_INTR)
+					R_IF |= LCDC_INTR;
+				break;
+				}
+			// normal line
+			else if (R_LY < LCD_HEIGHT)
+				{
+				if (R_LY == 0)
+					{
+					WY = R_WY;
+					WYC = 0;
+					//LCDStart();
+					// clear screen
+					memset(gb_fb, 0x00, LCD_WIDTH * LCD_HEIGHT);
+					}
+				lcd_mode = LCD_HBLANK;
+				if (R_STAT & STAT_MODE_0_INTR)
+					R_IF |= LCDC_INTR;
+				}
+			}
+		// oam access
+		else if (lcd_mode == LCD_HBLANK && lcd_count >= LCD_MODE_2_CYCLES)
+			{
+			lcd_mode = LCD_SEARCH_OAM;
+			if (R_STAT & STAT_MODE_2_INTR)
+				R_IF |= LCDC_INTR;
+			}        
+		// update LCD
+		else if (lcd_mode == LCD_SEARCH_OAM && lcd_count >= LCD_MODE_3_CYCLES)
+			{
+			lcd_mode = LCD_TRANSFER;
+			LCDDrawLine();
+			}
+		}
 
-            // check for HBLANK HDMA
-            if (cgb_enable && (R_HDMA & HDMA_OFF) == 0x00)
-                {
-                u8 i;
-                // copy 0x10 bytes each hblank
-                for (i = 0; i < 0x10; i++)
-                    WRITE(R_HDMAD + (R_HDMA * 0x10) + i, READ(R_HDMAS + (R_HDMA * 0x10) + i));
-                R_HDMA--;
-                lcd_count += 8 * (cgb_double + 1);
-                inst_cycles += 8 * (cgb_double + 1);
-                }
-            }
-        }
-    // oam access
-    else if (lcd_mode == LCD_HBLANK && lcd_count >= LCD_MODE_2_CYCLES * (cgb_double + 1))
-        {
-        lcd_mode = LCD_SEARCH_OAM;
-        if (R_STAT & STAT_MODE_2_INTR)
-            R_IF |= LCDC_INTR;
-        }        
-    // update LCD
-    else if (lcd_mode == LCD_SEARCH_OAM && lcd_count >= LCD_MODE_3_CYCLES * (cgb_double + 1))
-        {
-        lcd_mode = LCD_TRANSFER;
-        LCDDrawLine();
-        }
+	return;
+
+lbl_halted:
+	for (;;)
+		{
+		inst_cycles = 4;
+
+		// handle interrupts
+		if (R_IF & R_IE & ANY_INTR)
+			{
+			// disable halt
+			gb_halt = 0;
         
-    // DIV register timing
-    div_count += inst_cycles;
-    if (div_count > DIV_CYCLES)
-        {
-        R_DIV++;
-        div_count -= DIV_CYCLES;
-        }
+			if (gb_ime)
+				{
+				// disable interrupts
+				gb_ime = 0;
+
+				// PUSH PC
+				WRITE(SP-1, PC >> 8);
+				WRITE(SP-2, PC & 0xFF);
+				SP = SP - 2;
+            
+				// Call interrupt handler
+				if (R_IF & R_IE & VBLANK_INTR)
+					{
+					PC = VBLANK_INTR_ADDR;
+					R_IF ^= VBLANK_INTR;
+					}
+				else if (R_IF & R_IE & LCDC_INTR)
+					{
+					PC = LCDC_INTR_ADDR;
+					R_IF ^= LCDC_INTR;
+					}
+				else if (R_IF & R_IE & TIMER_INTR)
+					{
+					PC = TIMER_INTR_ADDR;
+					R_IF ^= TIMER_INTR;
+					}
+				else if (R_IF & R_IE & SERIAL_INTR)
+					{
+					PC = SERIAL_INTR_ADDR;
+					R_IF ^= SERIAL_INTR;
+					}
+				else if (R_IF & R_IE & CONTROL_INTR)
+					{
+					PC = CONTROL_INTR_ADDR;
+					R_IF ^= CONTROL_INTR;
+					}
+				}
+			}
+
+		// CPU timing
+		cpu_count += inst_cycles;
+
+		// DIV register timing
+		div_count += inst_cycles;
+		if (div_count > DIV_CYCLES)
+			{
+			R_DIV++;
+			div_count -= DIV_CYCLES;
+			}
     
-    // TIMA register timing
-    if (tac_enable)
-        {
-        tima_count += inst_cycles;
-        if (tima_count > TAC_CYCLES[tac_rate])
-            {
-            tima_count -= TAC_CYCLES[tac_rate];
-            R_TIMA++;
-            if (R_TIMA == 0)
-                {
-                R_IF |= TIMER_INTR;
-                R_TIMA = R_TMA;
-                }
-            }
-        }
+		// TIMA register timing
+		if (tac_enable)
+			{
+			tima_count += inst_cycles;
+			if (tima_count > TAC_CYCLES[tac_rate])
+				{
+				tima_count -= TAC_CYCLES[tac_rate];
+				R_TIMA++;
+				if (R_TIMA == 0)
+					{
+					R_IF |= TIMER_INTR;
+					R_TIMA = R_TMA;
+					}
+				}
+			}
+    
+		// LCD timing
+		lcd_count += inst_cycles;
+		// New scanline
+		if (lcd_count > LCD_LINE_CYCLES)
+			{
+			lcd_count -= LCD_LINE_CYCLES;
+
+			// LYC update
+			if (R_LY == R_LYC)
+				{
+				R_STAT |= STAT_LYC_COINC;
+				if (R_STAT & STAT_LYC_INTR)
+					R_IF |= LCDC_INTR;
+				}
+			else
+				{
+				R_STAT &= 0xFB;
+				}
+
+			// next line
+			R_LY = (R_LY + 1) % LCD_VERT_LINES;
+        
+			// VBLANK Start
+			if (R_LY == LCD_HEIGHT)
+				{
+				//OutputDebugString("---- VBLANK ----\n");
+				lcd_mode = LCD_VBLANK;
+				//gb_frame = 1;
+            
+				R_IF |= VBLANK_INTR;
+				if (R_STAT & STAT_MODE_1_INTR)
+					R_IF |= LCDC_INTR;
+				break;
+				}
+			// normal line
+			else if (R_LY < LCD_HEIGHT)
+				{
+				if (R_LY == 0)
+					{
+					WY = R_WY;
+					WYC = 0;
+					//LCDStart();
+					// clear screen
+					memset(gb_fb, 0x00, LCD_WIDTH * LCD_HEIGHT);
+					}
+				lcd_mode = LCD_HBLANK;
+				if (R_STAT & STAT_MODE_0_INTR)
+					R_IF |= LCDC_INTR;
+				}
+			}
+		// oam access
+		else if (lcd_mode == LCD_HBLANK && lcd_count >= LCD_MODE_2_CYCLES)
+			{
+			lcd_mode = LCD_SEARCH_OAM;
+			if (R_STAT & STAT_MODE_2_INTR)
+				R_IF |= LCDC_INTR;
+			}        
+		// update LCD
+		else if (lcd_mode == LCD_SEARCH_OAM && lcd_count >= LCD_MODE_3_CYCLES)
+			{
+			lcd_mode = LCD_TRANSFER;
+			LCDDrawLine();
+			}
+
+		if (gb_halt == 0) { goto lbl_not_halted; }
+		}
+
+	return;
     }
 
 // CB helper variables
@@ -2344,8 +2395,6 @@ void LoadROM(u8* rom, u32 size, u8* save, u32 save_size)
     gb_cram     = CART_RAM[ROM[ROM_MBC_INFO]];
     rom_banks   = NUM_ROM_BANKS[ROM[ROM_BANK_COUNT]];
     cram_banks  = NUM_RAM_BANKS[ROM[ROM_RAM_SIZE]];
-    cgb_enable  = (ROM[ROM_CGB_SUPPORT] == CGB_EXCLUSIVE ||
-                    ROM[ROM_CGB_SUPPORT] == CGB_OPTIONAL);
 
     PowerUp();
     }
@@ -2362,7 +2411,7 @@ void PowerUp()
     // GB
     gb_halt = 0;
     gb_ime = 1;
-    gb_bios_enable = !cgb_enable;
+    gb_bios_enable = 1;
     lcd_mode = 0;
 
     // MBC
@@ -2374,7 +2423,7 @@ void PowerUp()
     cram_mode   = 0;
     
     // CPU registers
-    R_A = (cgb_enable ? 0x11 : 0x01);
+    R_A = 0x01;
     F_Z = 0x01;
     F_N = 0x00;
     F_H = 0x01;
@@ -2439,18 +2488,6 @@ void PowerUp()
     R_WY        = 0x00;
     R_WX        = 0x00;
     R_IE        = 0x00;
-
-    // CGB registers
-    R_HDMA      = 0xFF;
-    R_BCPS      = 0x00;
-    R_OCPS      = 0x00;
-    R_KEY1      = 0x00;
-    R_HDMAS     = 0x0000;
-    R_HDMAD     = 0x8000;
-
-    // CGB palette
-    for (i = 0; i < 32; i++)
-        BCPD[i] = 0xFFFF;
 
     // GB framebuffer
     for (y = 0; y < LCD_HEIGHT; y++)
