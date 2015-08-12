@@ -18,6 +18,8 @@ char  rom_file_buf[260];
 char* rom_file = rom_file_buf;
 char  save_file[260];
 
+enum {BTN_RIGHT = 0, BTN_LEFT = 1, BTN_UP = 2, BTN_DOWN = 3, BTN_A = 4, BTN_B = 5, BTN_SELECT = 6, BTN_START = 7, NO_BUTTON = 255};
+
 // Data
 u8*   rom = NULL;
 u32   rom_size = 0;
@@ -25,6 +27,13 @@ u8*   save = NULL;
 u32   save_size = 0;
 FILE* rom_f = 0l;
 FILE* save_f = 0l;
+u8    in_battle = 0;
+u32   battle_time = 0;
+u32   battle_fade = 0;
+u8    facing_ledge = 0;
+
+extern u32* moves;
+extern u32* startmoves;
 
 // Declarations
 void  DrawFrame(HWND hWnd, HDC hDC, HBITMAP screen, u32* pixels, HBRUSH brush);
@@ -46,6 +55,7 @@ enum{
 #ifdef DMG_BIOS_ENABLE
     ID_STUFF_USE_BIOS,
 #endif
+	ID_TWITCH,
     ID_RESET,
     // color scheme
     ID_COLORS_RED,     
@@ -73,6 +83,8 @@ u8   running = 1;
 UINT speed_setting = ID_SPEED_NORMAL;
 int  frame_limit = 0;
 u32  cur_t, old_t;
+u8   lastkey = 255;
+u8   twitch = 1;
 
 // Screen surfaces
 int SCR_WIDTH = LCD_WIDTH * 2;
@@ -91,6 +103,10 @@ u32 COLORS_I[4] = {0xFF000000, 0xFF444444, 0xFF999999, 0xFFF0F0F0};
 u32* color_maps[] = {COLORS_R, COLORS_G, COLORS_B, COLORS_O, COLORS_Y, COLORS_N, COLORS_I};
 u32* color_map;
 
+extern unsigned char ChooseInput(unsigned char);
+extern unsigned char ChooseInputBattle(unsigned int);
+extern void SeedRand();
+
 // GameBoy Color palette conversion
 u32 ColorTo32(u16 cgb)
     {
@@ -100,6 +116,41 @@ u32 ColorTo32(u16 cgb)
 
     return 0xFF000000 | (r << 16) | (g << 8) | b;
     }
+
+
+// Check screen pixels
+u8 IsBlackIsland(char x, char y)
+{
+	return (gb_fb[y][x] == 3 &&
+		gb_fb[y-1][x] == 0 &&
+		gb_fb[y+1][x] == 0 &&
+		gb_fb[y][x+1] == 0 &&
+		gb_fb[y][x-1] == 0);
+}
+
+u8 IsWhiteIsland(char x, char y)
+{
+	return (gb_fb[y][x] == 0 &&
+		gb_fb[y-1][x] == 3 &&
+		gb_fb[y+1][x] == 3 &&
+		gb_fb[y][x+1] == 3 &&
+		gb_fb[y][x-1] == 3);
+}
+
+u8 IsBlack(char x, char y)
+{
+	return (gb_fb[y][x] == 3);
+}
+
+u8 IsDarkGray(char x, char y)
+{
+	return (gb_fb[y][x] == 2);
+}
+
+u8 IsLtGray(char x, char y)
+{
+	return (gb_fb[y][x] == 1);
+}
 
 // Key Mappings
 #define NUM_KEYS    8
@@ -111,7 +162,6 @@ u32 KEYS[] =
     0x44,     0x41,    0x57,      0x53, 
     VK_SPACE, VK_BACK, VK_LSHIFT, VK_ESCAPE
     };
-
 
 void PickROM(HWND hWnd)
     {
@@ -266,6 +316,9 @@ HFONT SetupRC(HDC hDC)
     return hFont;
     }
 
+extern u32 movesize;
+extern u32 movesbytes;
+extern u32 move_j;
 void DrawFrame(HWND hWnd, HDC hDC, HBITMAP screen, u32* pixels, HBRUSH brush)
     {
     u8 sx, sy;
@@ -312,8 +365,22 @@ void DrawFrame(HWND hWnd, HDC hDC, HBITMAP screen, u32* pixels, HBRUSH brush)
         sprintf(buffer, "FPS: %i", fps);
         DrawText(hDC, buffer, -1, &text, DT_SINGLELINE | DT_NOCLIP);
         text.top = SCR_HEIGHT - 28;  text.left = 2;
-        sprintf(buffer, "File: %s", rom_file);
-        DrawText(hDC, buffer, -1, &text, DT_SINGLELINE | DT_NOCLIP);
+        sprintf(buffer, "Battle: %i", battle_time);
+        //DrawText(hDC, buffer, -1, &text, DT_SINGLELINE | DT_NOCLIP);
+		/*if (in_battle)
+			DrawText(hDC, buffer, -1, &text, DT_SINGLELINE | DT_NOCLIP);
+		else
+			DrawText(hDC, "Walk", -1, &text, DT_SINGLELINE | DT_NOCLIP);*/
+		if (facing_ledge) 
+			DrawText(hDC, "Ledge", -1, &text, DT_SINGLELINE | DT_NOCLIP);
+		else if (in_battle)
+			DrawText(hDC, buffer, -1, &text, DT_SINGLELINE | DT_NOCLIP);
+		else
+			DrawText(hDC, "Walk", -1, &text, DT_SINGLELINE | DT_NOCLIP);
+
+		sprintf(buffer, "0x%X [%i] (%i) {%i}", moves[0], movesize, movesbytes, move_j);
+		text.left = SCR_WIDTH - 180;
+		DrawText(hDC, buffer, -1, &text, DT_SINGLELINE | DT_NOCLIP);
         }
 
     EndPaint(hWnd, &ps);
@@ -438,6 +505,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 }
             break;
 #endif
+		case ID_TWITCH:
+			twitch = !twitch;
+			break;
+
         case ID_RESET:
             if (started) 
                 {
@@ -474,7 +545,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         case ID_SPEED_FASTER:
         case ID_SPEED_FASTEST:
             {
-            int speeds[] = {0, 1, 2, -1};
+            int speeds[] = {0, 3, 7, -1/*1, 3, -1*/};
             if (LOWORD(wParam) != speed_setting)
                 {
                 CheckMenuItem(hMenu, speed_setting, MF_UNCHECKED);
@@ -570,10 +641,10 @@ HMENU MakeMenus(HWND hWnd)
 
     AppendMenu(hSubMenu, MF_STRING, ID_SPEED_NORMAL, "&Normal Speed");
     AppendMenu(hSubMenu, MF_STRING, ID_SPEED_FAST, "&Fast (200%)");
-    AppendMenu(hSubMenu, MF_STRING, ID_SPEED_FASTER, "Faste&r (300%)");
+    AppendMenu(hSubMenu, MF_STRING, ID_SPEED_FASTER, "Faste&r (400%)");
     AppendMenu(hSubMenu, MF_STRING, ID_SPEED_FASTEST, "Faste&st");
     CheckMenuItem(hSubMenu, ID_SPEED_NORMAL, MF_CHECKED);
-
+	AppendMenu(hSubMenu, MF_STRING, ID_TWITCH, "&Disable Twitch");
     AppendMenu(hSubMenu, MF_STRING, ID_RESET, "&Reset");
     AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT)hSubMenu, "&Stuff");
 
@@ -581,7 +652,7 @@ HMENU MakeMenus(HWND hWnd)
     AppendMenu(hSubMenu, MF_STRING, ID_COLORS_RED,       "&Red");
     AppendMenu(hSubMenu, MF_STRING, ID_COLORS_GREEN,     "&Green");
     AppendMenu(hSubMenu, MF_STRING, ID_COLORS_BLUE,      "&Blue");
-    AppendMenu(hSubMenu, MF_STRING, ID_COLORS_ORANGE,    "Yelll&ow");
+    AppendMenu(hSubMenu, MF_STRING, ID_COLORS_ORANGE,    "Yell&ow");
     AppendMenu(hSubMenu, MF_STRING, ID_COLORS_GRAYSCALE, "Gra&yscale");
     AppendMenu(hSubMenu, MF_STRING, ID_COLORS_NIGHTTIME, "&Night Time");
     AppendMenu(hSubMenu, MF_STRING, ID_COLORS_INVERTED,  "&Inverted");
@@ -605,6 +676,7 @@ int CALLBACK WinMain(HINSTANCE hInstance,
     HWND hWnd;
     MSG  message;
     int x, y, width, height, windowType;
+	u8 itr = 0;
 
     // Colors
     color_map = COLORS_Y;
@@ -645,6 +717,8 @@ int CALLBACK WinMain(HINSTANCE hInstance,
         HWND_DESKTOP, NULL, hInstance, NULL
     );
 
+	SeedRand();
+
     // Init
     ShowWindow(hWnd, nCmdShow);
     UpdateWindow(hWnd);
@@ -666,10 +740,66 @@ int CALLBACK WinMain(HINSTANCE hInstance,
             }
         if ((rendered <= frame_limit || frame_limit == -1)) 
             { 
-            if (started) { RunFrame(); }
+            if (started) { 
+				facing_ledge = IsBlack(71,88) && IsBlack(72,88) && IsBlack(73,89) && IsLtGray(73,88) && 
+								(IsDarkGray(74,88) || IsBlack(74,88));
+
+				if ((IsWhiteIsland(24,19) && IsBlackIsland(27,19) && IsBlackIsland(27,21)) ||
+					(IsWhiteIsland(88,75) && IsBlackIsland(91,75) && IsBlackIsland(91,77)) || 
+					(IsBlackIsland(105,3) && IsBlackIsland(105,5)))
+				{
+					if (in_battle == 0)
+					{
+						in_battle = 1;
+					}
+					battle_fade = 20;
+				} else {
+					if (battle_fade > 0) {
+						battle_fade = battle_fade - 1;
+					}
+					else if (in_battle) {
+						in_battle = 0;
+					}
+				}
+
+				if (!in_battle) {
+					battle_time = 0;
+				} else {
+					battle_time++;
+				}
+
+				if (twitch)
+				{
+					u8 key;
+					
+					if (in_battle) {
+						key = ChooseInputBattle(battle_time);
+					}
+					else {
+						key = ChooseInput(lastkey);
+						if (facing_ledge && key == BTN_DOWN) key = NO_BUTTON;
+					}
+					if (key == 255 && lastkey != 255)
+					{
+						KeyRelease(lastkey);
+						lastkey = 255;
+					} 
+					else if (key != 255 && key != lastkey)
+					{
+						if (lastkey != 255) KeyRelease(lastkey);
+						KeyPress(key);
+						lastkey = key;
+					}
+
+				}
+
+				RunFrame(); 
+			}
             rendered++;
             frames++;
             }
+
+		if (frame_limit != -1) Sleep(1);
         }
 
     // Battery file
@@ -687,6 +817,9 @@ int CALLBACK WinMain(HINSTANCE hInstance,
     // Clean up
     free (rom);
     free (save);
+
+	if (moves) free(moves);
+	if (startmoves) free(startmoves);
 
     // Quit
     return 0;
