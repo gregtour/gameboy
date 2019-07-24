@@ -213,6 +213,8 @@ s16 NOISE_SAMPLE(u32 tick, u8 vol)
     return (vol << 5) * (rand_state % 32 - 16) / 16;
     }
 
+u16 notes_on[2] = { 0 };
+
 u32 sound_counter = 0;
 extern u32 cpu_count;
 void fill_audio(void* udata, s16* stream, int len)
@@ -221,6 +223,8 @@ void fill_audio(void* udata, s16* stream, int len)
 
     u32 i; u32 tick; u32 period; s16 sample;
     u32 freq; u8 vol; u8 enable; u8 sndlen;
+
+    u16 new_notes[2] = { 0 };
 
     rand_state ^= 1719 * cpu_count;
 
@@ -237,6 +241,8 @@ void fill_audio(void* udata, s16* stream, int len)
     freq = (R_NR13 & NR13_FREQ_LO) | ((R_NR14 & NR14_FREQ_HI) << 8);
     vol = (R_NR12 & NR12_INIT_VOLUME) / 3;
     enable = (R_NR52 & NR52_CH1_ON);
+
+    new_notes[0] = freq;
 
     // decrement length
     if ((R_NR14 & NR14_COUNTER) && (R_NR11 & NR11_SOUND_LEN))
@@ -265,6 +271,8 @@ void fill_audio(void* udata, s16* stream, int len)
     freq = (R_NR23 & NR23_FREQ_LO) | ((R_NR24 & NR24_FREQ_HI) << 8);
     vol = (R_NR22 & NR22_INIT_VOLUME) / 3;
     enable = (R_NR52 & NR52_CH2_ON);
+
+    new_notes[1] = freq;
 
     // decrement length
     if ((R_NR24 & NR24_COUNTER) && (R_NR21 & NR21_SOUND_LEN))
@@ -311,6 +319,19 @@ void fill_audio(void* udata, s16* stream, int len)
             }
         }
 #endif
+
+    if (notes_on[0] != new_notes[0])
+        {
+        if (notes_on[0]) printf("off %i\n", notes_on[0]);
+        if (new_notes[0]) printf("on %i\n", new_notes[0]);
+        notes_on[0] = new_notes[0];
+        }
+    if (notes_on[1] != new_notes[1])
+        {
+        if (notes_on[1]) printf("off %i\n", notes_on[1]);
+        if (new_notes[1]) printf("on %i\n", new_notes[1]);
+        notes_on[1] = new_notes[1];
+        }
 
     sound_counter += len;
     }
