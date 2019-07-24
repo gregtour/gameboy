@@ -10,6 +10,7 @@ typedef unsigned int u32;
 typedef unsigned short u16;
 typedef unsigned char u8;
 typedef signed char s8;
+typedef signed short s16;
 
 #ifndef NULL
 #define NULL 0L
@@ -91,6 +92,7 @@ extern u8 OAM[OAM_SIZE];
 #define VRAM_BANK_SIZE  0x2000
 
 // CGB support
+#define GB_COLOR_SUPPORT
 #define CGB_OPTIONAL    0x80
 #define CGB_EXCLUSIVE   0xC0
 //#define CGB_OPTIONAL    0x100

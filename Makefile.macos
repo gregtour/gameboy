@@ -1,0 +1,20 @@
+# GameBoy Emulator Makefile
+
+BIN = out/gameboy
+INCLUDES = -I /usr/local/Cellar/sdl2/2.0.9_1/include/SDL2/ -L /usr/local/Cellar/sdl2/2.0.9_1/lib
+
+SOURCES = gameboy.c platform.c sound.c screen.c
+
+MAKE_OPTIONS = -Wall -std=c99 -g
+#-O3 
+
+LIBS = -lm -lSDL2
+
+OPTIONS = $(LIBS)
+#`sdl2-config --cflags --libs`
+
+all:
+	gcc $(MAKE_OPTIONS) $(SOURCES) $(INCLUDES) -o $(BIN) $(OPTIONS)
+
+clean:
+	rm -rf $(BIN)
