@@ -6,6 +6,7 @@
 */
 
 #include "gameboy.h"
+#include "sound.h"
 
 // CART /////////////////////////////
 u8* ROM;
@@ -83,6 +84,7 @@ u8 OAM[OAM_SIZE];
 // TIMERS
 u32 cpu_count;
 u32 lcd_count;
+u32 audio_count;
 u32 div_count;
 u32 tima_count;
 u8  tac_enable;
@@ -105,17 +107,17 @@ u8* R_OCPD = (u8*)OCPD;
 // REGISTERS
 u8 R_P1;    u8 R_SB;    u8 R_SC;    u8 R_DIV;
 u8 R_TIMA;  u8 R_TMA;   u8 R_TAC;   u8 R_IF;
-u8 R_NR10;  u8 R_NR11;  u8 R_NR12;  u8 R_NR14;
-u8 R_NR21;  u8 R_NR22;  u8 R_NR24;  u8 R_NR30;
-u8 R_NR31;  u8 R_NR32;  u8 R_NR33;  u8 R_NR41;
-u8 R_NR42;  u8 R_NR43;  u8 R_NR44;  u8 R_NR50;
-u8 R_NR51;  u8 R_NR52;  u8 R_LCDC;  u8 R_STAT;
+u8 R_LCDC;  u8 R_STAT;
 u8 R_SCY;   u8 R_SCX;   u8 R_LY;    u8 R_LYC;
 u8 R_DMA;   u8 R_BGP;   u8 R_OBP0;  u8 R_OBP1;
 u8 R_WY;    u8 R_WX;    u8 R_IE;
 
 // SOUND
-u8 R_NR13;
+u8 R_NR10;  u8 R_NR11;  u8 R_NR12;  u8 R_NR13;  u8 R_NR14;  
+u8 R_NR20;  u8 R_NR21;  u8 R_NR22;  u8 R_NR23;  u8 R_NR24;  
+u8 R_NR30;  u8 R_NR31;  u8 R_NR32;  u8 R_NR33;  u8 R_NR34;  
+u8 R_NR40;  u8 R_NR41;  u8 R_NR42;  u8 R_NR43;  u8 R_NR44;  
+u8 R_NR50;  u8 R_NR51;  u8 R_NR52;
 
 // CGB REGISTERS
 u8 R_HDMA;  u8 R_BCPS;  u8 R_OCPS;  u8 R_KEY1;
@@ -200,25 +202,19 @@ u8 READ(u16 addr)
                 case 0x0F: return R_IF;
                     
                 // Sound Registers
-                case 0x10: return R_NR10;
-                case 0x11: return R_NR11;
-                case 0x12: return R_NR12;
-                case 0x13: return R_NR13;
-                case 0x14: return R_NR14;
-                case 0x16: return R_NR21;
-                case 0x17: return R_NR22;
-                case 0x19: return R_NR24;
-                case 0x1A: return R_NR30;
-                case 0x1B: return R_NR31;
-                case 0x1C: return R_NR32;
-                case 0x1E: return R_NR33;
-                case 0x20: return R_NR41;
-                case 0x21: return R_NR42;
-                case 0x22: return R_NR43;
-                case 0x23: return R_NR44;
-                case 0x24: return R_NR50;
-                case 0x25: return R_NR51;
-                case 0x26: return R_NR52;
+                case 0x10: case 0x11: case 0x12: case 0x13: 
+                case 0x14: case 0x15: case 0x16: case 0x17: 
+                case 0x18: case 0x19: case 0x1A: case 0x1B: 
+                case 0x1C: case 0x1D: case 0x1E: case 0x1F: 
+                case 0x20: case 0x21: case 0x22: case 0x23: 
+                case 0x24: case 0x25: case 0x26:/*case 0x27:
+                case 0x28: case 0x29: case 0x2A: case 0x2B: 
+                case 0x2C: case 0x2D: case 0x2E: case 0x2F:*/
+                case 0x30: case 0x31: case 0x32: case 0x33: 
+                case 0x34: case 0x35: case 0x36: case 0x37: 
+                case 0x38: case 0x39: case 0x3A: case 0x3B: 
+                case 0x3C: case 0x3D: case 0x3E: case 0x3F: 
+                    return AUDIO_READ(addr & 0xFF);
                 
                 // LCD Registers
                 case 0x40: return R_LCDC;
@@ -407,25 +403,20 @@ void WRITE(u16 addr, u8 val)
                     return;
                     
                 // Sound Registers
-                case 0x10: R_NR10 = val;    return;
-                case 0x11: R_NR11 = val;    return;
-                case 0x12: R_NR12 = val;    return;
-                case 0x13: R_NR13 = val;    return;
-                case 0x14: R_NR14 = val;    return;
-                case 0x16: R_NR21 = val;    return;
-                case 0x17: R_NR22 = val;    return;
-                case 0x19: R_NR24 = val;    return;
-                case 0x1A: R_NR30 = val;    return;
-                case 0x1B: R_NR31 = val;    return;
-                case 0x1C: R_NR32 = val;    return;
-                case 0x1E: R_NR33 = val;    return;
-                case 0x20: R_NR41 = val;    return;
-                case 0x21: R_NR42 = val;    return;
-                case 0x22: R_NR43 = val;    return;
-                case 0x23: R_NR44 = val;    return;
-                case 0x24: R_NR50 = val;    return;
-                case 0x25: R_NR51 = val;    return;
-                case 0x26: R_NR52 = val;    return;
+                case 0x10: case 0x11: case 0x12: case 0x13: 
+                case 0x14: case 0x15: case 0x16: case 0x17: 
+                case 0x18: case 0x19: case 0x1A: case 0x1B: 
+                case 0x1C: case 0x1D: case 0x1E: case 0x1F: 
+                case 0x20: case 0x21: case 0x22: case 0x23: 
+                case 0x24: case 0x25: case 0x26:/*case 0x27:
+                case 0x28: case 0x29: case 0x2A: case 0x2B: 
+                case 0x2C: case 0x2D: case 0x2E: case 0x2F:*/
+                case 0x30: case 0x31: case 0x32: case 0x33: 
+                case 0x34: case 0x35: case 0x36: case 0x37: 
+                case 0x38: case 0x39: case 0x3A: case 0x3B: 
+                case 0x3C: case 0x3D: case 0x3E: case 0x3F: 
+                    AUDIO_WRITE(addr & 0xFF, val);
+                    return;
                 
                 // LCD Registers
                 case 0x40: R_LCDC = val;    return;
@@ -446,7 +437,7 @@ void WRITE(u16 addr, u8 val)
                         }
                     return;
                     }
-                // DGM Palette Registers
+                // DMG Palette Registers
                 case 0x47:
                     R_BGP = val;
                     BGP[0] = (R_BGP & 0x03);
@@ -705,7 +696,8 @@ void StepCPU()
             F_C = (R_A & 0x01);
             break;
         case 0x08: // LD (imm), SP
-            NN = READ(PC++) | READ(PC++) << 8;
+            NN = READ(PC++);
+            NN |= READ(PC++) << 8;
             WRITE(NN++, SP & 0xFF);
             WRITE(NN, SP >> 8);
             break;
@@ -1977,7 +1969,8 @@ void StepCPU()
             PC = R_HL;
             break;
         case 0xEA: // LD (imm), A
-            WRITE(READ(PC++) | READ(PC++) << 8, R_A);
+            WRITE(READ(PC) | READ(PC+1) << 8, R_A);
+            PC += 2;
             break;
         case 0xEB: // illegal
             break;
@@ -2056,7 +2049,8 @@ void StepCPU()
             SP = R_HL;
             break;
         case 0xFA: // LD A, (imm)
-            R_A = READ(READ(PC++) | READ(PC++) << 8);
+            R_A = READ(READ(PC) | READ(PC+1) << 8);
+            PC += 2;
             break;
         case 0xFB: // EI
             gb_ime = 1;
@@ -2083,6 +2077,14 @@ void StepCPU()
     // CPU timing
     cpu_count += inst_cycles;
     
+    // AUDIO timing
+    audio_count += inst_cycles;
+    if (audio_count > AUDIO_CYCLES)
+        {
+        AudioUpdate();
+        audio_count -= AUDIO_CYCLES;
+        }
+
     // LCD timing
     lcd_count += inst_cycles;
     // New scanline
@@ -2411,17 +2413,23 @@ void PowerUp()
     R_TIMA      = 0x00;
     R_TMA       = 0x00;
     R_TAC       = 0x00;
+    // sound subsystem
     R_NR10      = 0x80;
     R_NR11      = 0xBF;
     R_NR12      = 0xF3;
+    R_NR13      = 0xFF;
     R_NR14      = 0xBF;
+    R_NR20      = 0xFF;
     R_NR21      = 0x3F;
     R_NR22      = 0x00;
+    R_NR23      = 0xFF;
     R_NR24      = 0xBF;
     R_NR30      = 0x7F;
     R_NR31      = 0xFF;
     R_NR32      = 0x9F;
     R_NR33      = 0xBF;
+    R_NR34      = 0xFF;
+    R_NR40      = 0xFF;
     R_NR41      = 0xFF;
     R_NR42      = 0x00;
     R_NR43      = 0x00;
@@ -2429,6 +2437,7 @@ void PowerUp()
     R_NR50      = 0x77;
     R_NR51      = 0xF3;
     R_NR52      = 0xF1;
+    // display
     R_LCDC      = 0x91;
     R_SCY       = 0x00;
     R_SCX       = 0x00;
