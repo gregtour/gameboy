@@ -8,13 +8,13 @@
 
 u8 ARAM[16];
 
-void fill_audio(void* udata, u8* stream, int len);
+void fill_audio(void* udata, s16* stream, int len);
 
 void SDLAudioStart()
     {
     SDL_AudioSpec wanted;
     wanted.freq = SAMPLING_RATE;
-    wanted.format = AUDIO_U8;
+    wanted.format = AUDIO_S16;
     wanted.channels = 1;
     wanted.samples = SAMPLING_SIZE;
     wanted.callback = fill_audio;
@@ -181,11 +181,48 @@ void AUDIO_WRITE(u8 addr, u8 val)
 void SoundStart() {}
 void AudioUpdate() {}
 
-u32 sound_counter = 0;
-void fill_audio(void* udata, u8* stream, int len)
+u32 PERIOD(u16 freq)
     {
-    u32 i; u32 tick; u32 period; u8 sample;
+    //period = (SAMPLING_RATE / 1 /*/ 64*/ / 2) / freq;
+    //period = period > 1 ? period : 2;
+    //period = 2 * (2048 - freq) / 11;
+    return (2048 - freq);
+    }
+
+s16 RESAMPLE(u32 tick, u32 period, u8 vol)
+    {
+    u32 N = 11 * tick;
+    u32 D = 4 * period;
+    u32 D2 = D / 2;
+    u32 q = (N / D);
+    u32 r = (N - q * D);
+    if (r > D2) 
+        {
+        r = D - r;
+        }
+
+    s32 sample = vol * 128 * (r | (r>>1)) / D2 - vol * 64;
+
+    return sample;
+    }
+
+u32 rand_state = 0x0101;
+s16 NOISE_SAMPLE(u32 tick, u8 vol)
+    {
+    rand_state = ~(rand_state >> 5) ^ (rand_state * 113 + 17);
+    return (vol << 5) * (rand_state % 32 - 16) / 16;
+    }
+
+u32 sound_counter = 0;
+extern u32 cpu_count;
+void fill_audio(void* udata, s16* stream, int len)
+    {
+    len /= 2;
+
+    u32 i; u32 tick; u32 period; s16 sample;
     u32 freq; u8 vol; u8 enable; u8 sndlen;
+
+    rand_state ^= 1719 * cpu_count;
 
     for (i = 0; i < len; i++) 
         {
@@ -215,12 +252,10 @@ void fill_audio(void* udata, u8* stream, int len)
     // play sound
     if (vol > 0 && freq > 0 && enable)
         {
-        period = (2048 - freq) >> 2;
-        if (!period) period = 1;
+        period = PERIOD(freq);
         for (i = 0; i < len; tick = sound_counter + i++)
             {
-            sample = (tick / period) % 2 ? vol : 0;
-            //sample = (sample % period) * vol / sample;
+            sample = RESAMPLE(tick, period, vol);
             stream[i] += sample;
             }
         }
@@ -244,13 +279,34 @@ void fill_audio(void* udata, u8* stream, int len)
 
     if (vol > 0 && freq > 0 && R_NR52 & enable) 
         {
-        //period = (SAMPLING_RATE / 1 /*/ 64*/ / 2) / freq;
-        //period = period > 1 ? period : 2;
-        period = (2048 - freq) >> 2;
-        if (!period) period = 1;
+        period = PERIOD(freq);
         for (i = 0; i < len; tick = sound_counter + i++)
             {
-            sample = (tick / period) % 2 ? vol : 0;
+            sample = RESAMPLE(tick, period, vol);
+            stream[i] += sample;
+            }
+        }
+#endif
+#if 1
+
+    vol = (R_NR42 & NR42_INIT_VOLUME) / 3;
+    enable = (R_NR52 & NR52_CH2_ON);
+
+    if ((R_NR44 & NR44_COUNTER) && (R_NR41 & NR41_SOUND_LEN))
+        {
+        sndlen = (R_NR41 & NR41_SOUND_LEN) + 1;
+        R_NR41 = sndlen & NR41_SOUND_LEN;
+        if (sndlen & 0x40)
+            {
+            R_NR52 = R_NR52 & (~NR52_CH4_ON);
+            }
+        }
+
+    if (vol > 0 && R_NR52 & NR52_CH4_ON)
+        {
+        for (i = 0; i < len; tick = sound_counter + i++)
+            {
+            sample = NOISE_SAMPLE(tick, vol);
             stream[i] += sample;
             }
         }
