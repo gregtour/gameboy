@@ -4,3 +4,5 @@ gameboy
 # Any ROMs and SAV files
 *.gb*
 *.sav
+
+out/
