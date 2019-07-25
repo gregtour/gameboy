@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <math.h>
 
+FILE* raw;
 
 u8 ARAM[16];
 
@@ -12,6 +13,7 @@ void fill_audio(void* udata, s16* stream, int len);
 
 void SDLAudioStart()
     {
+    raw = fopen("out/sound.out", "w");
     SDL_AudioSpec wanted;
     wanted.freq = SAMPLING_RATE;
     wanted.format = AUDIO_S16;
@@ -186,11 +188,12 @@ u32 PERIOD(u16 freq)
     //period = (SAMPLING_RATE / 1 /*/ 64*/ / 2) / freq;
     //period = period > 1 ? period : 2;
     //period = 2 * (2048 - freq) / 11;
-    return (2048 - freq);
+    return (2048 - freq) / 8;
     }
 
 s16 RESAMPLE(u32 tick, u32 period, u8 vol)
     {
+    if (!period) period = 1;
     u32 N = 11 * tick;
     u32 D = 4 * period;
     u32 D2 = D / 2;
@@ -202,6 +205,8 @@ s16 RESAMPLE(u32 tick, u32 period, u8 vol)
         }
 
     s32 sample = vol * 128 * (r | (r>>1)) / D2 - vol * 64;
+    s16 svol = vol << 6;
+    sample = ((tick/period)%2) ? svol : -svol;
 
     return sample;
     }
@@ -320,6 +325,7 @@ void fill_audio(void* udata, s16* stream, int len)
         }
 #endif
 
+    /*
     if (notes_on[0] != new_notes[0])
         {
         if (notes_on[0]) printf("off %i\n", notes_on[0]);
@@ -332,6 +338,8 @@ void fill_audio(void* udata, s16* stream, int len)
         if (new_notes[1]) printf("on %i\n", new_notes[1]);
         notes_on[1] = new_notes[1];
         }
+    //*/
+    fwrite(stream, sizeof(stream[0]), len, raw);
 
     sound_counter += len;
     }
