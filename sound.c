@@ -5,22 +5,19 @@
 #include <stdio.h>
 #include <math.h>
 
-u16 buffer_start = 0;
-u16 buffer_end = 0;
-
 s16 AUDIO_BUFFER_L[AUDIO_BUFFER_SIZE];
 s16 AUDIO_BUFFER_R[AUDIO_BUFFER_SIZE];
 
 u8 ARAM[16];
 
-void fill_audio(void* udata, u8* stream, int len);
+void SDLFillAudio(void* udata, s16* stream, int len);
 
 void SDLAudioStart()
     {
     SDL_AudioSpec wanted;
     wanted.freq = SAMPLING_RATE;
     wanted.format = AUDIO_S16SYS;
-    wanted.channels = 2;
+    wanted.channels = AUDIO_CHANNELS;
     wanted.samples = SAMPLING_SIZE;
     wanted.callback = SDLFillAudio;
     wanted.userdata = NULL;
@@ -187,38 +184,68 @@ void SoundStart()
     {
     }
 
-void SDLFillAudio(void* udata, s16* stream, int len)
+s16 NOISE(u32 tick, u8 vol)
     {
-    len -= 1;
-    for (i = 0; i < len; i += 2)
-        {
-        if (buffer_start != buffer_end)
-            {
-            stream[i+0] = AUDIO_BUFFER_L[buffer_start];
-            stream[i+1] = AUDIO_BUFFER_R[buffer_start];
-            buffer_start = (buffer_start + 1) % AUDIO_BUFFER_SIZE;
-            }    
-        else
-            {
-            stream[i+0] = 0;
-            stream[i+1] = 0;
-            }
-        }
+    s16 svol = vol;
+    static u32 rand_state = 0xF390439F;
+    rand_state = 137 * rand_state + ((rand_state >> 8) | (rand_state << 24)) + 1;
+
+    return svol * (rand_state & 0xFF - 128);
+    }
+
+u32 PERIOD(u16 xfreq)
+    {
+    xfreq = 2 * (2048 - xfreq);
+    return (xfreq ? xfreq : 1);
+    }
+
+s16 RESAMPLE(u32 tick, u32 period, u8 vol)
+    {
+    s16 svol = vol << 6;
+    return (tick % period) ? svol : -svol;
     }
 
 u32 audio_frame = 0;
 u32 audio_count = 0;
+u32 buffer_start = 0;
+u32 buffer_end = 0;
 void AudioUpdate()
     {
-    u32 i; u32 tick; u32 period; u8 sample;
-    u32 freq; u8 vol; u8 enable; u8 sndlen;
-    
-    u32 fill_amt = (audio_frame % 2) ? 188 : 187;
+    u32 audio_cycle = audio_frame;
+    u32 i; u16 freq; u32 period; u8 vol; u8 enable; u8 sndlen; s16 sample;
 
-    u32 fill_start = buffer_end;
-    u32 fill_end = (buffer_end + fill_amt) % AUDIO_BUFFER_SIZE;
 
-    if (buffer_end - buffer_start)
+    u32 fill_amt, fill_start, fill_end, fill_idx;
+    u32 capacity = (buffer_start - buffer_end - 1) % AUDIO_BUFFER_SIZE;
+
+    fill_amt = SAMPLING_RATE / (CPU_CYCLES / AUDIO_CYCLES);
+    if (capacity > (3*AUDIO_BUFFER_SIZE/4))
+        {
+        fill_amt += fill_amt/2;
+        }
+    else if (capacity < (AUDIO_BUFFER_SIZE/4))
+        {
+        fill_amt -= fill_amt/2;
+        }
+
+    if (fill_amt > capacity) fill_amt = capacity;
+
+    printf("fill: %i\n", fill_amt);
+
+    /// fill_amt = (audio_frame % 2) ? 188 : 187;
+    fill_start = buffer_end;
+    fill_end = (buffer_end + fill_amt) % AUDIO_BUFFER_SIZE;
+
+    // clear sound buffers
+    for (i = fill_start; 
+        i != fill_end; 
+        i = (i + 1) % AUDIO_BUFFER_SIZE)
+        {
+        AUDIO_BUFFER_R[i] = 0;
+        AUDIO_BUFFER_L[i] = 0;
+        }
+
+    buffer_end = fill_end;
 
     // // audio is off
     if (!(R_NR52 & NR52_ALL_SOUND)) return;
@@ -226,10 +253,9 @@ void AudioUpdate()
 #if 1
     // channel 1
     freq = (R_NR13 & NR13_FREQ_LO) | ((R_NR14 & NR14_FREQ_HI) << 8);
-    vol = (R_NR12 & NR12_INIT_VOLUME) / 3;
-    enable = (R_NR52 & NR52_CH1_ON);
+    vol = (R_NR12 & NR12_INIT_VOLUME);
 
-    // decrement length
+    // sound length counter
     if ((R_NR14 & NR14_COUNTER) && (R_NR11 & NR11_SOUND_LEN))
         {
         sndlen = (R_NR11 & NR11_SOUND_LEN) + 1;
@@ -239,27 +265,28 @@ void AudioUpdate()
             R_NR52 = R_NR52 & (~NR52_CH1_ON);
             }
         }
-
+    // sweep
+    // volume envelope
     // play sound
+    enable = (R_NR52 & NR52_CH1_ON);
     if (vol > 0 && freq > 0 && enable)
         {
-        //period = (SAMPLING_RATE / 1 /*/ 64*/ / 2) / freq;
-        //period = period > 1 ? period : 2;
-        period = (2048 - freq) >> 2;
-        if (!period) period = 1;
-        for (i = 0; i < len; tick = sound_counter + i++)
+        period = PERIOD(freq);
+        for (i = 0, fill_idx=fill_start; 
+            fill_idx != fill_end; 
+            i++, fill_idx=(fill_idx+1)%AUDIO_BUFFER_SIZE)
             {
-            sample = (tick / period) % 2 ? vol : 0;
-            //sample = (sample % period) * vol / sample;
-            stream[i] += sample;
+            sample = RESAMPLE(audio_count+i, period, vol);
+            AUDIO_BUFFER_L[fill_idx] += sample;
+            AUDIO_BUFFER_R[fill_idx] += sample;
             }
         }
 #endif
+
 #if 1
     // channel 2
     freq = (R_NR23 & NR23_FREQ_LO) | ((R_NR24 & NR24_FREQ_HI) << 8);
     vol = (R_NR22 & NR22_INIT_VOLUME) / 3;
-    enable = (R_NR52 & NR52_CH2_ON);
 
     // decrement length
     if ((R_NR24 & NR24_COUNTER) && (R_NR21 & NR21_SOUND_LEN))
@@ -272,38 +299,46 @@ void AudioUpdate()
             }
         }
 
+    enable = (R_NR52 & NR52_CH2_ON);
     if (vol > 0 && freq > 0 && R_NR52 & enable) 
         {
-        //period = (SAMPLING_RATE / 1 /*/ 64*/ / 2) / freq;
-        //period = period > 1 ? period : 2;
-        period = (2048 - freq) >> 2;
-        if (!period) period = 1;
-        for (i = 0; i < len; tick = sound_counter + i++)
+        period = PERIOD(freq);
+        for (i = 0, fill_idx=fill_start; 
+            fill_idx != fill_end; 
+            i++, fill_idx=(fill_idx+1)%AUDIO_BUFFER_SIZE)
             {
-            sample = (tick / period) % 2 ? vol : 0;
-            stream[i] += sample;
+            sample = RESAMPLE(audio_count+i, period, vol);
+            AUDIO_BUFFER_L[fill_idx] += sample;
+            AUDIO_BUFFER_R[fill_idx] += sample;
             }
         }
 #endif
 
-#if 0
-    int i; char hi; char lo;
-    u8 a; u8 b; u8 c; u8 d;
-    u8 SO1; u8 SO2;
+#if 1
+    // channel 3
+    vol = (R_NR32 & NR22_INIT_VOLUME) / 3;
 
-    u32 freq = R_NR13 | (R_NR14 & 0x07) << 3;
-    u8  vol = 100;
-
-    for (i = 0; i < len; i++)
+    // decrement length
+    if ((R_NR34 & NR34_COUNTER) && (R_NR31 & NR31_SOUND_LEN))
         {
-        u32 tick = sound_counter + i;
-        if (freq)
+        sndlen = (R_NR31 & NR31_SOUND_LEN) + 1;
+        R_NR31 = (sndlen & NR31_SOUND_LEN);
+        if (sndlen & 0x40)
             {
-            stream[i] = (tick/freq)%2 ? vol : 0;
+            R_NR52 = R_NR52 & (~NR52_CH3_ON);
             }
-        else
+        }    
+
+    enable = (R_NR52 & NR52_CH3_ON);
+    if (vol > 0 && R_NR52 & enable) 
+        {
+        for (i = 0, fill_idx=fill_start; 
+            fill_idx != fill_end; 
+            i++, fill_idx=(fill_idx+1)%AUDIO_BUFFER_SIZE)
             {
-            stream[i] = 0;
+            sample = NOISE(audio_count+i, vol);
+            AUDIO_BUFFER_L[fill_idx] += sample;
+            AUDIO_BUFFER_R[fill_idx] += sample;
             }
         }
 #endif
@@ -311,3 +346,29 @@ void AudioUpdate()
     audio_frame++;
     audio_count += fill_amt;
     }
+
+
+void SDLFillAudio(void* udata, s16* stream, int len)
+    {
+    u32 i; u8 flag = 0;
+
+    len = (len/2) - 1;
+
+    for (i = 0; i < len;)
+        {
+        if (buffer_start != buffer_end)
+            {
+            stream[i++] = AUDIO_BUFFER_L[buffer_start];
+            stream[i++] = AUDIO_BUFFER_R[buffer_start];
+            buffer_start = (buffer_start + 1) % AUDIO_BUFFER_SIZE;
+            }    
+        else
+            {
+            flag = 1;
+            stream[i++] = 0;
+            stream[i++] = 0;
+            }
+        }
+    if (flag) printf("audio buffer underflow\n");
+    }
+

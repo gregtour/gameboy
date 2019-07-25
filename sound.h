@@ -7,10 +7,12 @@
 
 // No sound support yet
 #define SAMPLING_RATE		48000
-#define SAMPLING_SIZE		2048
+#define SAMPLING_SIZE		1024
+#define AUDIO_CHANNELS 		2
 
 #define AUDIO_BUFFER_SIZE	4096
 #define AUDIO_CYCLES		15625
+#define CPU_CYCLES 			4000000
 
 /* Channel 1 */
 #define NR10_SWEEP_TIME     (0x70)

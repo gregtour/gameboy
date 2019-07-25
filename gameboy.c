@@ -6,6 +6,7 @@
 */
 
 #include "gameboy.h"
+#include "sound.h"
 
 // CART /////////////////////////////
 u8* ROM;
