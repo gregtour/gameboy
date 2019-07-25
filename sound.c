@@ -199,11 +199,13 @@ s16 NOISE(u32 tick, u8 vol)
 
 u32 PERIOD(u16 xfreq)
     {
-    return (2048 - xfreq);
+    return (2048 - xfreq) / 8;
     }
 
 s16 RESAMPLE(u32 tick, u32 period, u8 vol)
     {
+    if (!period) period = 1;
+
     s32 sample;
     u32 N = 11 * tick;
     u32 D = 4 * period;
@@ -269,6 +271,7 @@ void AudioUpdate()
 #if 1
         // channel 1
         freq = (R_NR13 & NR13_FREQ_LO) | ((R_NR14 & NR14_FREQ_HI) << 8);
+        //freq = 1000;
         vol = (R_NR12 & NR12_INIT_VOLUME);
 
         // sound length counter
@@ -299,7 +302,7 @@ void AudioUpdate()
             }
 #endif  
 
-#if 0
+#if 1
         // channel 2
         freq = (R_NR23 & NR23_FREQ_LO) | ((R_NR24 & NR24_FREQ_HI) << 8);
         vol = (R_NR22 & NR22_INIT_VOLUME) / 3;
@@ -330,7 +333,7 @@ void AudioUpdate()
             }
 #endif
 
-#if 0
+#if 1
         // channel 4
         vol = (R_NR42 & NR42_INIT_VOLUME);
 
@@ -359,6 +362,15 @@ void AudioUpdate()
             }
 #endif
         }
+
+    /*
+    for (i = 0, fill_idx=fill_start; 
+        fill_idx != fill_end; 
+        i++, fill_idx=(fill_idx+1)%AUDIO_BUFFER_SIZE)
+        {
+        fwrite(AUDIO_BUFFER_L + fill_idx, sizeof(AUDIO_BUFFER_L[0]), 1, raw);
+        }
+    //*/
 
     // set ending
     buffer_end = fill_end;

@@ -7,7 +7,7 @@
 
 // No sound support yet
 #define SAMPLING_RATE		48000
-#define SAMPLING_SIZE		1024
+#define SAMPLING_SIZE		512
 #define AUDIO_CHANNELS 		2
 
 #define AUDIO_BUFFER_SIZE	4096
