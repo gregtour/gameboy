@@ -6,3 +6,5 @@ gameboy
 *.sav
 
 out/
+test/
+

@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <math.h>
 
-#define SAVE_AUDIO_DATA_RAW
+// #define SAVE_AUDIO_DATA_RAW
 
 s16 AUDIO_BUFFER_L[AUDIO_BUFFER_SIZE];
 s16 AUDIO_BUFFER_R[AUDIO_BUFFER_SIZE];

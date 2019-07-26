@@ -78,6 +78,18 @@ u32 KEYS[] =
     SDLK_ESCAPE
     };
 
+u32 BUTTONS[] =
+    {
+    SDL_CONTROLLER_BUTTON_DPAD_RIGHT,
+    SDL_CONTROLLER_BUTTON_DPAD_LEFT,
+    SDL_CONTROLLER_BUTTON_DPAD_UP,
+    SDL_CONTROLLER_BUTTON_DPAD_DOWN,
+    SDL_CONTROLLER_BUTTON_A,
+    SDL_CONTROLLER_BUTTON_B,
+    SDL_CONTROLLER_BUTTON_BACK,
+    SDL_CONTROLLER_BUTTON_START ,
+    };
+
 // strings
 char  window_caption[100];
 char  window_caption_fps[100];
@@ -92,6 +104,8 @@ u8*   save;
 u32   save_size;
 FILE* rom_f;
 FILE* save_f;
+
+SDL_GameController* controller = NULL;
 
 #if 0
 int SDL_main(int argc, char **argv)
@@ -125,6 +139,10 @@ int main(int argc, char **argv)
     screen_tex = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, SCR_WIDTH, SCR_HEIGHT);
 
     screen = SDL_CreateRGBSurface(0, SCR_WIDTH, SCR_HEIGHT, 32, 0xFF000000, 0x00FF0000, 0x0000FF00, 0x000000FF);
+
+    printf("Num gamepads: %i\n", SDL_NumJoysticks());
+    controller = SDL_GameControllerOpen(0);
+    if (controller) printf("Gamepad connected.\n");
 #endif
 
 
@@ -256,6 +274,26 @@ int main(int argc, char **argv)
                         || event.key.keysym.sym == SDLK_LCTRL)
                     {
                     quit_seq = 0;
+                    }
+                }
+            else if(event.type == SDL_CONTROLLERBUTTONDOWN)
+                {
+                for (j = 0; j < NUM_KEYS; j++)
+                    {
+                    if (BUTTONS[j] == event.cbutton.button)
+                        {
+                        KeyPress(j);
+                        }
+                    }
+                }
+            else if (event.type == SDL_CONTROLLERBUTTONUP)
+                {
+                for (j = 0; j < NUM_KEYS; j++)
+                    {
+                    if (BUTTONS[j] == event.cbutton.button)
+                        {
+                        KeyRelease(j);
+                        }
                     }
                 }
             }
