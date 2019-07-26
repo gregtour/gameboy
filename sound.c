@@ -14,6 +14,19 @@ FILE* raw = NULL;
 
 u8 ARAM[16];
 
+struct {
+    u16 freq_timer;
+    u16 freq_enable;
+    u16 freq_shadow;
+} R_CHANNEL1 = {0}
+
+struct {
+    u8 sample;
+    u8 nibble;
+    u16 timer;
+} R_CHANNEL3 = {0};
+
+
 /*
     Handle reads from sound controller.
 */
@@ -38,7 +51,7 @@ u8 AUDIO_READ(u8 addr)
         case 0x17: return R_NR22;
         case 0x18: return /*R_NR23*/ 0;
         case 0x19: return R_NR24 & NR24_COUNTER;
-        case 0x1A: return R_NR30;
+        case 0x1A: return R_NR30 & NR30_SOUND_ON;
         case 0x1B: return R_NR31;
         case 0x1C: return R_NR32;
         case 0x1D: return /*R_NR33*/ 0;
@@ -131,6 +144,8 @@ void AUDIO_WRITE(u8 addr, u8 val)
             if (val & NR34_INIT)
                 {
                 R_NR52 |= NR52_CH3_ON;
+                R_CHANNEL3.sample = 0;
+                R_CHANNEL3.nibble = 0;
                 }
             return;
         case 0x1F: R_NR40 = val;    
@@ -362,6 +377,13 @@ void AudioUpdate()
                 AUDIO_BUFFER_R[fill_idx] += sample;
                 }
             }
+#endif
+
+#if 1
+        if ((R_NR34 & NR34_COUNTER) && (R_NR31 & NR31_SOUND_LEN))
+
+        enable = (R_NR30 & NR30_SOUND_ON) && (R_NR52 & NR52_CH3_ON);
+
 #endif
 
 #if 1
