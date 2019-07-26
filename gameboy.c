@@ -2436,7 +2436,7 @@ void PowerUp()
     R_NR44      = 0xBF;
     R_NR50      = 0x77;
     R_NR51      = 0xF3;
-    R_NR52      = 0xF1;
+    R_NR52      = 0xF0; //0xF1;
     // display
     R_LCDC      = 0x91;
     R_SCY       = 0x00;

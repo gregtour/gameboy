@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <math.h>
 
+#define SAVE_AUDIO_DATA_RAW
+
 s16 AUDIO_BUFFER_L[AUDIO_BUFFER_SIZE];
 s16 AUDIO_BUFFER_R[AUDIO_BUFFER_SIZE];
 
@@ -12,30 +14,9 @@ FILE* raw = NULL;
 
 u8 ARAM[16];
 
-void SDLFillAudio(void* udata, s16* stream, int len);
-
-void SDLAudioStart()
-    {
-#ifdef SAVE_AUDIO_DATA
-    raw = fopen("out/sound.out", "w");
-#endif
-
-    SDL_AudioSpec wanted;
-    wanted.freq = SAMPLING_RATE;
-    wanted.format = AUDIO_S16;
-    wanted.channels = AUDIO_CHANNELS;
-    wanted.samples = SAMPLING_SIZE;
-    wanted.callback = SDLFillAudio;
-    wanted.userdata = NULL;
-
-    if (SDL_OpenAudio(&wanted, NULL) < 0)
-        {
-        printf("Error opening audio.\n");
-        }
-    printf("Opened audio for playback.\n");
-    SDL_PauseAudio(0);
-    }
-
+/*
+    Handle reads from sound controller.
+*/
 u8 AUDIO_READ(u8 addr)
     {
     // sound reads don't work at all if off
@@ -78,6 +59,9 @@ u8 AUDIO_READ(u8 addr)
     return 0;
     }
 
+/*
+    Handle writes to sound controller.
+*/
 void AUDIO_WRITE(u8 addr, u8 val)
     {
     // sound writes don't work if all off
@@ -186,10 +170,36 @@ void AUDIO_WRITE(u8 addr, u8 val)
         }
     }
 
-void SoundStart()
+
+/*
+    Set up SDL to play sound.
+*/
+void SDLFillAudio(void* udata, s16* stream, int len);
+void SDLAudioStart()
     {
+#if defined(SAVE_AUDIO_DATA_RAW) || defined(SAVE_AUDIO_DATA_SDL)
+    raw = fopen("out/sound.out", "w");
+#endif
+
+    SDL_AudioSpec wanted;
+    wanted.freq = SAMPLING_RATE;
+    wanted.format = AUDIO_S16;
+    wanted.channels = AUDIO_CHANNELS;
+    wanted.samples = SAMPLING_SIZE;
+    wanted.callback = SDLFillAudio;
+    wanted.userdata = NULL;
+
+    if (SDL_OpenAudio(&wanted, NULL) < 0)
+        {
+        printf("Error opening audio.\n");
+        }
+    printf("Opened audio for playback.\n");
+    SDL_PauseAudio(0);
     }
 
+/*
+    Generate 'noise'
+*/
 s16 NOISE(u32 tick, u8 vol)
     {
     s16 svol = vol >> 2;
@@ -199,11 +209,17 @@ s16 NOISE(u32 tick, u8 vol)
     return svol * (rand_state & 0xFF - 128);
     }
 
+/*
+    Process GB frequency value.
+*/
 u32 PERIOD(u16 xfreq)
     {
     return (2048 - xfreq);
     }
 
+/*
+    Signal generator
+*/
 s16 RESAMPLE(u32 tick, u32 period, u8 vol)
     {
     if (!period) period = 1;
@@ -226,9 +242,7 @@ s16 RESAMPLE(u32 tick, u32 period, u8 vol)
         sample = -svol;
         }
 
-    sample = vol * 64 * r / D2 - vol * 32;
-    //
-    //sample = ((tick/period)%2) ? svol : -svol;
+    sample = vol * 128 * r / D2 - vol * 64;
 
     return sample;
     }
@@ -237,6 +251,10 @@ u32 audio_frame = 0;
 u32 sample_count = 0;
 u32 buffer_start = 0;
 u32 buffer_end = 0;
+
+/*
+    Handle audio logic and generate sound at 256hz
+*/
 void AudioUpdate()
     {
     u32 audio_cycle = audio_frame;
@@ -376,14 +394,14 @@ void AudioUpdate()
 #endif
         }
 
-    /*
+#ifdef SAVE_AUDIO_DATA_RAW
     for (i = 0, fill_idx=fill_start; 
         fill_idx != fill_end; 
         i++, fill_idx=(fill_idx+1)%AUDIO_BUFFER_SIZE)
         {
         fwrite(AUDIO_BUFFER_L + fill_idx, sizeof(AUDIO_BUFFER_L[0]), 1, raw);
         }
-    //*/
+#endif
 
     // set ending
     buffer_end = fill_end;
@@ -393,7 +411,9 @@ void AudioUpdate()
 
     }
 
-
+/*
+    Provide sound to SDL audio.
+*/
 void SDLFillAudio(void* udata, s16* stream, int len)
     {
     u32 i; u8 flag = 0;
@@ -417,7 +437,7 @@ void SDLFillAudio(void* udata, s16* stream, int len)
         }
     if (flag) printf("audio buffer underflow\n");
 
-#ifdef SAVE_AUDIO_DATA
+#ifdef SAVE_AUDIO_DATA_SDL
     fwrite(stream, sizeof(stream[0]), len, raw);
 #endif
     }
