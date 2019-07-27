@@ -4,6 +4,7 @@
 #include "SDL_audio.h"
 
 #define SQUARE_WAVE
+//#define TRIANGLE_WAVE
 
 #define BIT(x)      (1 << (x))
 
