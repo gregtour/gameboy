@@ -3,17 +3,21 @@
 
 #include "SDL_audio.h"
 
+#define SQUARE_WAVE
+
 #define BIT(x)      (1 << (x))
+
+#define ARAM_SIZE			16
 
 // No sound support yet
 #define SAMPLING_RATE		48000
 #define SAMPLING_SIZE		1024
 #define AUDIO_CHANNELS 		2
 
+#define AUDIO_SAMPLING_RATE	0x20000
 #define AUDIO_BUFFER_SIZE	(8*SAMPLING_SIZE)
 #define AUDIO_CYCLES		15625
-#define CPU_CYCLES 			4000000
-#define AUDIO_FILL			(SAMPLING_RATE / (CPU_CYCLES / AUDIO_CYCLES))
+#define AUDIO_FILL			(SAMPLING_RATE / (CPU_CLOCKSPEED / AUDIO_CYCLES))
 
 /* Channel 1 */
 #define NR10_SWEEP_TIME     (0x70)
