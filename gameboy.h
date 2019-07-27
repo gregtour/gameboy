@@ -5,6 +5,9 @@
 #define SDL_1_2     0
 #define SDL_2_0     1
 
+//#define CPU_CLOCKSPEED		0x400000
+#define CPU_CLOCKSPEED		4000000
+
 // types
 typedef unsigned int u32;
 typedef unsigned short u16;
