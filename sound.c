@@ -281,12 +281,9 @@ s16 RESAMPLE(u32 tick, u32 fp_period, u8 vol, u8 duty)
     subtick = ((0x10 * tick) % fp_period) * 0x80 / fp_period;
 
 #ifdef SQUARE_WAVE
-    u8 cutoff = duty == 0 ? 0x10 :
-                duty == 1 ? 0x20 :
-                duty == 2 ? 0x40 :
-              /*duty == 3 ?*/ 0x60;
+    u8 duties[4] = { 0x01, 0x81, 0x83, 0x7E };
 
-    if (subtick > cutoff)
+    if (duties[duty] & (0x80 >> (subtick / 0x10)))
         {
         return svol;
         }
