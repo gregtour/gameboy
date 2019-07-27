@@ -16,6 +16,8 @@
 #include "gameboy.h"
 #include "sound.h"
 
+#define SCALE_FACTOR        (2)
+
 // emulator data
 int running = 1;
 SDL_Event event;
@@ -130,7 +132,7 @@ int main(int argc, char **argv)
 #else
     window = SDL_CreateWindow("GameBoy", SDL_WINDOWPOS_CENTERED, 
                                 SDL_WINDOWPOS_CENTERED,
-                                SCR_WIDTH, SCR_HEIGHT,
+                                SCR_WIDTH * SCALE_FACTOR, SCR_HEIGHT * SCALE_FACTOR,
                                 SDL_WINDOW_SHOWN | SDL_WINDOW_INPUT_FOCUS);
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
@@ -334,6 +336,17 @@ int main(int argc, char **argv)
             SDL_Flip(screen);
 #else
             SDL_UpdateTexture(screen_tex, NULL, screen->pixels, screen->pitch);
+
+            // SDL_Rect screen_tex_rect;
+            // screen_tex_rect.x = 0;
+            // screen_tex_rect.y = 0;
+            // screen_tex_rect.w = SCR_WIDTH;
+            // screen_tex_rect.h = SCR_HEIGHT;
+            // SDL_Rect renderer_rect;
+            // renderer_rect.x = 0;
+            // renderer_rect.y = 0;
+            // renderer_rect.w = SCR_WIDTH;
+            // renderer_rect.h = SCR_HEIGHT;
 
             SDL_RenderClear(renderer);
             SDL_RenderCopy(renderer, screen_tex, NULL, NULL);
