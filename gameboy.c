@@ -112,13 +112,6 @@ u8 R_SCY;   u8 R_SCX;   u8 R_LY;    u8 R_LYC;
 u8 R_DMA;   u8 R_BGP;   u8 R_OBP0;  u8 R_OBP1;
 u8 R_WY;    u8 R_WX;    u8 R_IE;
 
-// SOUND
-u8 R_NR10;  u8 R_NR11;  u8 R_NR12;  u8 R_NR13;  u8 R_NR14;  
-u8 R_NR20;  u8 R_NR21;  u8 R_NR22;  u8 R_NR23;  u8 R_NR24;  
-u8 R_NR30;  u8 R_NR31;  u8 R_NR32;  u8 R_NR33;  u8 R_NR34;  
-u8 R_NR40;  u8 R_NR41;  u8 R_NR42;  u8 R_NR43;  u8 R_NR44;  
-u8 R_NR50;  u8 R_NR51;  u8 R_NR52;
-
 // CGB REGISTERS
 u8 R_HDMA;  u8 R_BCPS;  u8 R_OCPS;  u8 R_KEY1;
 u16 R_HDMAS;
@@ -2414,29 +2407,29 @@ void PowerUp()
     R_TMA       = 0x00;
     R_TAC       = 0x00;
     // sound subsystem
-    R_NR10      = 0x80;
-    R_NR11      = 0xBF;
-    R_NR12      = 0xF3;
-    R_NR13      = 0xFF;
-    R_NR14      = 0xBF;
-    R_NR20      = 0xFF;
-    R_NR21      = 0x3F;
-    R_NR22      = 0x00;
-    R_NR23      = 0xFF;
-    R_NR24      = 0xBF;
-    R_NR30      = 0x7F;
-    R_NR31      = 0xFF;
-    R_NR32      = 0x9F;
-    R_NR33      = 0xBF;
-    R_NR34      = 0xFF;
-    R_NR40      = 0xFF;
-    R_NR41      = 0xFF;
-    R_NR42      = 0x00;
-    R_NR43      = 0x00;
-    R_NR44      = 0xBF;
-    R_NR50      = 0x77;
-    R_NR51      = 0xF3;
-    R_NR52      = 0xF0; //0xF1;
+    // R_NR10      = 0x80;
+    // R_NR11      = 0xBF;
+    // R_NR12      = 0xF3;
+    // R_NR13      = 0xFF;
+    // R_NR14      = 0xBF;
+    // R_NR20      = 0xFF;
+    // R_NR21      = 0x3F;
+    // R_NR22      = 0x00;
+    // R_NR23      = 0xFF;
+    // R_NR24      = 0xBF;
+    // R_NR30      = 0x7F;
+    // R_NR31      = 0xFF;
+    // R_NR32      = 0x9F;
+    // R_NR33      = 0xBF;
+    // R_NR34      = 0xFF;
+    // R_NR40      = 0xFF;
+    // R_NR41      = 0xFF;
+    // R_NR42      = 0x00;
+    // R_NR43      = 0x00;
+    // R_NR44      = 0xBF;
+    // R_NR50      = 0x77;
+    // R_NR51      = 0xF3;
+    // R_NR52      = 0xF0; //0xF1;
     // display
     R_LCDC      = 0x91;
     R_SCY       = 0x00;

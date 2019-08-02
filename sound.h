@@ -8,7 +8,7 @@
 
 #define BIT(x)      (1 << (x))
 
-#define ARAM_SIZE			16
+#define AUDIO_RAM_SIZE			16
 
 // No sound support yet
 #define SAMPLING_RATE		48000
@@ -20,50 +20,81 @@
 #define AUDIO_CYCLES		15625
 #define AUDIO_FILL			(SAMPLING_RATE / (CPU_CLOCKSPEED / AUDIO_CYCLES))
 
-/* Channel 1 */
-#define NR10_SWEEP_TIME     (0x70)
-#define NR10_SWEEP_DECREASE (0x08)
-#define NR10_SWEEP_SHIFT    (0x07)
-#define NR11_WAVE_DUTY      (0xC0)
-#define NR11_SOUND_LEN      (0x3F)
-#define NR12_INIT_VOLUME    (0xF0)
-#define NR12_ENV_DIR        (0x08)
-#define NR12_ENV_SWEEP      (0x07)
-#define NR13_FREQ_LO        (0xFF)
-#define NR14_INIT           (0x80)
-#define NR14_COUNTER        (0x40)
-#define NR14_FREQ_HI        (0x07)
 
-/* Channel 2 */
-#define NR21_WAVE_DUTY      (0xC0)
-#define NR21_SOUND_LEN      (0x3F)
-#define NR22_INIT_VOLUME    (0xF0)
-#define NR22_ENV_DIR        (0x08)
-#define NR22_ENV_SWEEP      (0x07)
-#define NR23_FREQ_LO        (0xFF)
-#define NR24_INIT           (0x80)
-#define NR24_COUNTER        (0x40)
-#define NR24_FREQ_HI        (0x07)
+// sweep register
+// NR10 sweep register
+typedef struct {
+    u8  time;
+    u8  dir;
+    u8  shift;
+    u16 freq;
+    u16 timer;
+} SWEEP;
 
-/* Channel 3 */
-#define NR30_SOUND_ON       (0x80)
-#define NR31_SOUND_LEN      (0xFF)
-#define NR32_OUT_LEVEL      (0x60)
-#define NR33_FREQ_LO        (0xFF)
-#define NR34_INIT           (0x80)
-#define NR34_COUNTER        (0x40)
-#define NR34_FREQ_HI        (0x07)
+#define SWEEP_TIME_BITS 	(0x70)
+#define SWEEP_TIME_OFFS		(4)
+#define SWEEP_DIR_BIT 		(0x08)
+#define SWEEP_DIR_OFFS 		(3)
+#define SWEEP_SHIFT_BITS	(0x07)
+#define SWEEP_SHIFT_OFFS 	(0)
 
-/* Channel 4 */
-#define NR41_SOUND_LEN      (0x3F)
-#define NR42_INIT_VOLUME    (0xF0)
-#define NR42_ENV_DIR        (0x08)
-#define NR42_ENV_SWEEP      (0x07)
-#define NR43_SHIFT_CLOCK    (0xF0)
-#define NR43_COUNTER_STEP   (0x08)
-#define NR43_DIV_RATIO      (0x03)
-#define NR44_INIT           (0x80)
-#define NR44_COUNTER        (0x40)
+// duty / len register
+// NR11, NR21, NR41 len register
+typedef struct {
+    u8 duty;
+    u8 len;
+} DUTY_LEN;
+
+#define DUTY_BITS			(0xC0)
+#define DUTY_OFFS 			(6)
+#define SOUND_LEN_BITS 		(0x3F)
+#define SOUND_LEN_OFFS 		(0)
+
+// NR12, NR22, NR42 envelope register
+typedef struct {
+    u8  disabled;
+    u8  volume;
+    u8  dir;
+    u8  sweep;
+    u16 timer;
+} ENVELOPE;
+
+#define INIT_VOLUME_BITS 	(0xF0)
+#define INIT_VOLUME_OFFS 	(4)
+#define ENV_DIR_BIT			(0x08)
+#define ENV_DIR_OFFS 		(3)
+#define ENV_SWEEP_BITS 		(0x07)
+#define ENV_SWEEP_OFFS 		(0)
+
+// NR13 & 14, NR23 & 24, NR33 & 34, NR44: init, counter, freq
+typedef struct {
+	u8 	initset;
+	u8  counter;
+    u16 freq;
+    u16 timer;
+} CHANNEL;
+
+#define FREQ_LO_MASK 		(0x00FF)
+#define FREQ_HI_MASK 		(0xFF00)
+#define INIT_BIT 			(0x80)
+#define COUNTER_BIT 		(0x40)
+#define COUNTER_OFFS 		(6)
+#define FREQ_HI_BITS 		(0x07)
+
+// NR30, NR31
+#define NR30_SOUND_ON_BIT	(0x80)
+#define NR30_SOUND_ON_OFFS 	(7)
+#define NR31_SOUND_LEN_BITS	(0xFF)
+#define NR32_OUT_LEVEL_BITS	(0x60)
+#define NR32_OUT_LEVEL_OFFS	(5)
+
+// NR43
+#define NR43_SHIFT_CLOCK_BITS	(0xF0)
+#define NR43_SHIFT_CLOCK_OFFS 	(4)
+#define NR43_COUNTER_STEP_BITS 	(0x08)
+#define NR43_COUNTER_STEP_OFFS 	(3)
+#define NR43_DIV_RATIO_BITS 	(0x03)
+#define NR43_DIV_RATIO_OFFS 	(0)
 
 /* Sound Control */
 #define NR50_SO2_ENABLE     (0x80)
@@ -86,31 +117,6 @@
 #define NR52_CH3_ON         (0x04)
 #define NR52_CH2_ON         (0x02)
 #define NR52_CH1_ON         (0x01)
-
-// cpu sound registers
-extern u8 R_NR10;
-extern u8 R_NR11;
-extern u8 R_NR12;
-extern u8 R_NR13;
-extern u8 R_NR14;
-extern u8 R_NR20;
-extern u8 R_NR21;
-extern u8 R_NR22;
-extern u8 R_NR23;
-extern u8 R_NR24;
-extern u8 R_NR30;
-extern u8 R_NR31;
-extern u8 R_NR32;
-extern u8 R_NR33;
-extern u8 R_NR34;
-extern u8 R_NR40;
-extern u8 R_NR41;
-extern u8 R_NR42;
-extern u8 R_NR43;
-extern u8 R_NR44;
-extern u8 R_NR50;
-extern u8 R_NR51;
-extern u8 R_NR52;
 
 void SDLAudioStart();
 

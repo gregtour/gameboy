@@ -10,7 +10,6 @@
 s16 AUDIO_BUFFER_L[AUDIO_BUFFER_SIZE];
 s16 AUDIO_BUFFER_R[AUDIO_BUFFER_SIZE];
 
-
 u32 audio_frame = 0;
 u32 sample_count = 0;
 u32 buffer_start = 0;
@@ -20,79 +19,122 @@ u32 fill_start = 0;
 u32 fill_end = 0;
 u32 fill_idx = 0;
 
-
 FILE* raw = NULL;
 
-u8 ARAM[ARAM_SIZE] = { 0x84, 0x40, 0x43, 0xAA, 0x2D, 0x78, 0x92, 0x3C, 0x60, 0x59, 0x59, 0xB0, 0x34, 0xB8, 0x2E, 0xDA };
+u8 AUDIO_RAM[AUDIO_RAM_SIZE] = { 
+    0x84, 0x40, 0x43, 0xAA, 0x2D, 0x78, 0x92, 0x3C, 0x60, 0x59, 0x59, 0xB0, 0x34, 0xB8, 0x2E, 0xDA 
+};
 
-typedef struct {
-    u8  sweep_time;
-    u8  sweep_dir;
-    u8  sweep_shift;
-    u16 sweep_freq;
-    u16 timer;
-} SWEEP;
 
-typedef struct {
-    u8  disabled;
-    u8  envelope_volume;
-    u8  envelope_dir;
-    u8  envelope_sweep;
-    u16 timer;
-} ENVELOPE;
-
-typedef struct {
-    u16 length;
-    u16 timer;
-} COUNTER;
-
-struct 
-{
-    SWEEP       sweep;
-    ENVELOPE    envelope;
-    COUNTER     counter;
-    u16         freq;
-} R_CHANNEL1 = {0};
-
-struct
-    {
-    // real values
-    u8 chan_init;
-    u8 sweep_time;
-    u8 sweep_dir;
-    u8 sweep_shift;
-    u8 wave_duty;
-    u8 sound_len;
-    u8 init_volume;
-    u8 env_dir;
-    u8 env_sweep;
-    u16 freq;
-    u8 counter_enable;
-    // shadow values
-    u8 env_enable;
-    u8 sound_counter;
-    u8 env_counter;
-    u8 sweep_counter;
-    } R_CHAN1 = {0};
-
-struct 
-{
-    ENVELOPE    envelope;
-    COUNTER     counter;
-    u16         freq;
-} R_CHANNEL2 = {0};
-
-struct 
-{
-    u8          seek;
-    COUNTER     counter;
-} R_CHANNEL3 = {0};
-
+// Audio Channel 1 - Square Wave 1
 struct {
-    SWEEP       sweep;
-    ENVELOPE    envelope;
-    COUNTER     counter;
-} R_CHANNEL4 = {0};
+    SWEEP       sweep;      /* NR10 */
+    DUTY_LEN    duty_len;   /* NR11 */
+    ENVELOPE    envelope;    /* NR12 */
+    CHANNEL     channel;    /* NR13, NR14 */
+} CH1;
+
+// Audio Channel 2 - Square Wave 2
+struct {
+    DUTY_LEN    duty_len;   /* NR21 */
+    ENVELOPE    envelope;    /* NR22 */
+    CHANNEL     channel;    /* NR23, NR24 */
+} CH2;
+
+// Audio Channel 3 - DAC
+struct {
+    u8          enable;     /* NR30 */
+    u8          sound_len;  /* NR31 */
+    u8          out_level;  /* NR32 */
+    CHANNEL     channel;    /* NR33, NR34 */
+} CH3;
+
+// Audio Channel 4 - Noise
+struct {
+    DUTY_LEN    len;        /* NR41 */ // no duty
+    ENVELOPE    envelope;   /* NR42 */
+    u8          NR43;       /* NR43 */
+    CHANNEL     channel;    /* NR44 */ // no freq
+} CH4;
+
+// Sound system
+struct {
+    u8  NR50;
+    u8  NR51;
+    u8  NR52;
+} SO;
+
+
+u8 READ_SWEEP(SWEEP* sweep)
+    {
+    return (
+        ((sweep->time << SWEEP_TIME_OFFS) & SWEEP_TIME_BITS) |
+        ((sweep->dir << SWEEP_DIR_OFFS) & SWEEP_DIR_BIT) |
+        ((sweep->shift << SWEEP_SHIFT_OFFS) & SWEEP_SHIFT_BITS)
+    );
+    }
+
+void WRITE_SWEEP(SWEEP* sweep, u8 value)
+    {
+    sweep->time = (value & SWEEP_TIME_BITS) >> SWEEP_TIME_OFFS;
+    sweep->dir = (value & SWEEP_DIR_BIT) >> SWEEP_DIR_OFFS;
+    sweep->shift = (value & SWEEP_SHIFT_BITS) >> SWEEP_SHIFT_OFFS;
+    }
+
+u8 READ_DUTY_LEN(DUTY_LEN* duty_len)
+    {
+    return (
+        ((duty_len->duty << DUTY_OFFS) & DUTY_BITS) |
+        ((duty_len->len << SOUND_LEN_OFFS) & SOUND_LEN_BITS)
+    );
+    }
+
+void WRITE_DUTY_LEN(DUTY_LEN* duty_len, u8 value)
+    {
+    duty_len->duty = (value & DUTY_BITS) >> DUTY_OFFS;
+    duty_len->len = (value & SOUND_LEN_BITS) >> SOUND_LEN_OFFS;
+    }
+
+u8 READ_ENVELOPE(ENVELOPE* env)
+    {
+    return (
+        ((env->volume << INIT_VOLUME_OFFS) & INIT_VOLUME_BITS) |
+        ((env->dir << ENV_DIR_OFFS) & ENV_DIR_BIT) |
+        ((env->sweep << ENV_SWEEP_OFFS) & ENV_SWEEP_BITS)
+    );
+    }
+
+void WRITE_ENVELOPE(ENVELOPE* env, u8 value)
+    {
+    env->volume = (value & INIT_VOLUME_BITS) >> INIT_VOLUME_OFFS;
+    env->dir = (value & ENV_DIR_BIT) >> ENV_DIR_OFFS;
+    env->sweep = (value & ENV_SWEEP_BITS) >> ENV_SWEEP_OFFS;
+    }
+
+u8 READ_CHANNEL_LO(CHANNEL* channel)
+    {
+    return (channel->freq & FREQ_LO_MASK);
+    }
+
+void WRITE_CHANNEL_LO(CHANNEL* channel, u8 value)
+    {
+    channel->freq = (channel->freq & FREQ_HI_MASK) | (value & FREQ_LO_MASK);
+    }
+
+u8 READ_CHANNEL_HI(CHANNEL* channel)
+    {
+    return (
+        (channel->counter << COUNTER_OFFS) & COUNTER_BIT
+    );
+    }
+
+void WRITE_CHANNEL_HI(CHANNEL* channel, u8 value)
+    {
+    channel->initset = (value & INIT_BIT);
+    channel->counter = (value & COUNTER_BIT) >> COUNTER_OFFS;
+    channel->freq = (channel->freq & FREQ_LO_MASK) | ((value & FREQ_HI_BITS) << 8);
+    }
+
 
 /*
     Handle reads from sound controller.
@@ -100,55 +142,86 @@ struct {
 u8 AUDIO_READ(u8 addr)
     {
     // sound reads don't work at all if off
-    if (!(R_NR52 & NR52_ALL_SOUND) && addr != 0x26) 
-        {
-        return 0;
-        }
+    if (!(SO.NR52 & NR52_ALL_SOUND)) return 0;
+
     // read sound registers / data
     switch (addr)
         {
-        // audio registers
-        case 0x10: 
-            return ((R_CHAN1.sweep_time << 4) & NR10_SWEEP_TIME)
-                 | ((R_CHAN1.sweep_dir << 3) & NR10_SWEEP_DECREASE)
-                 | ((R_CHAN1.sweep_shift) & NR10_SWEEP_SHIFT);
+        /* NR10 - Ch1 Sweep */
+        case 0x10: return READ_SWEEP(&CH1.sweep);
 
-        case 0x11: 
-            return ((R_CHAN1.wave_duty) << 6) & NR11_WAVE_DUTY;
+        /* NR11 - Ch1 Duty / Len */
+        case 0x11: return READ_DUTY_LEN(&CH1.duty_len);
 
-        case 0x12: 
-            return ((R_CHAN1.init_volume << 4) & NR12_INIT_VOLUME)
-                 | ((R_CHAN1.env_dir << 3) & NR12_ENV_DIR)
-                 | ((R_CHAN1.env_sweep) & NR12_ENV_SWEEP);
+        /* NR12 - Ch1 Envelope */
+        case 0x12: return READ_ENVELOPE(&CH1.envelope);
 
-        case 0x13: 
-            return /*R_NR13*/ 0;
+        /* NR13 - Ch1 Lo Freq */
+        case 0x13: return READ_CHANNEL_LO(&CH1.channel);
 
-        case 0x14: 
-            return ((R_CHAN1.counter_enable << 6) & NR14_COUNTER);
+        /* NR14 - CH1 Init, Counter, Hi Freq */
+        case 0x14: return READ_CHANNEL_HI(&CH1.channel);
 
-        case 0x15: return /*N/A*/ R_NR20;
-        case 0x16: return R_NR21 & NR21_WAVE_DUTY;
-        case 0x17: return R_NR22;
-        case 0x18: return /*R_NR23*/ 0;
-        case 0x19: return R_NR24 & NR24_COUNTER;
-        case 0x1A: return R_NR30 & NR30_SOUND_ON;
-        case 0x1B: return R_NR31;
-        case 0x1C: return R_NR32;
-        case 0x1D: return /*R_NR33*/ 0;
-        case 0x1E: return R_NR34 & NR34_COUNTER;
-        case 0x1F: return R_NR40;
-        case 0x20: return R_NR41;
-        case 0x21: return R_NR42;
-        case 0x22: return R_NR43;
-        case 0x23: return R_NR44 & NR44_COUNTER;
-        case 0x24: return R_NR50;
-        case 0x25: return R_NR51;
-        case 0x26: return R_NR52;
+        /* NR20 - Not Used */
+        case 0x15: return 0;
+
+        /* NR21 - Ch2 Duty / Len */
+        case 0x16: return READ_DUTY_LEN(&CH2.duty_len);
+
+        /* NR22 - Ch2 Envelope */
+        case 0x17: return READ_ENVELOPE(&CH2.envelope);
+
+        /* NR23 - Ch2 Lo Freq */
+        case 0x18: return READ_CHANNEL_LO(&CH2.channel);
+
+        /* NR24 - Ch2 Init, Counter, Hi Freq */
+        case 0x19: return READ_CHANNEL_HI(&CH2.channel);
+
+        /* NR30 - Ch3 Sound On */
+        case 0x1A: 
+            return (CH3.enable << NR30_SOUND_ON_OFFS) & NR30_SOUND_ON_BIT;
+
+        /* NR31 - Ch3 Sound Len */
+        case 0x1B: return CH3.sound_len;
+
+        /* NR32 - Ch3 Volume Out Level */
+        case 0x1C: 
+            return (CH3.out_level << NR32_OUT_LEVEL_OFFS) & NR32_OUT_LEVEL_BITS;
+
+        /* NR33 - Ch3 Lo Freq */
+        case 0x1D: return READ_CHANNEL_LO(&CH3.channel);
+
+        /* NR34 - Ch3 Init, Counter, Hi Freq */
+        case 0x1E: return READ_CHANNEL_HI(&CH3.channel);
+
+        /* NR40 - Not Used */
+        case 0x1F: return 0;
+
+        /* NR41 - Ch4 Len Register */
+        case 0x20: return READ_DUTY_LEN(&CH4.len);
+
+        /* NR42 - Ch4 Envelope */
+        case 0x21: return READ_ENVELOPE(&CH4.envelope);
+
+        /* NR43 - Ch4 Clock, Step, Ratio */
+        case 0x22: return CH4.NR43;
+
+        /* NR44 - Ch4 Init, Counter */
+        case 0x23: return READ_CHANNEL_HI(&CH4.channel);
+
+        /* NR50 */
+        case 0x24: return SO.NR50;
+
+        /* NR51 */
+        case 0x25: return SO.NR51;
+
+        /* NR52 */
+        case 0x26: return SO.NR52;
+        
         // wave pattern RAM
         case 0x30: case 0x31: case 0x32: case 0x33: case 0x34: case 0x35: case 0x36: case 0x37: 
         case 0x38: case 0x39: case 0x3A: case 0x3B: case 0x3C: case 0x3D: case 0x3E: case 0x3F: 
-            return ARAM[(addr - 0x30)];
+            return AUDIO_RAM[(addr - 0x30)];
         }
     return 0;
     }
@@ -158,132 +231,132 @@ u8 AUDIO_READ(u8 addr)
 */
 void AUDIO_WRITE(u8 addr, u8 val)
     {
-    u8 n;
-
     // sound writes don't work if all off
-    if (addr != 0x26 && !(R_NR52 & NR52_ALL_SOUND)) return;
-
-    // write sound register / data
-    switch (addr)
+    if (addr != 0x26 && !(SO.NR52 & NR52_ALL_SOUND)) return;
+switch (addr)
         {
+        /* NR10 - Ch1 Sweep */
         case 0x10: 
-            R_CHAN1.sweep_time = (val & NR10_SWEEP_TIME) >> 4;
-            R_CHAN1.sweep_dir = (val & NR10_SWEEP_DECREASE) >> 3;
-            R_CHAN1.sweep_shift = (val & NR10_SWEEP_SHIFT);
+            WRITE_SWEEP(&CH1.sweep, val);
             return;
 
+        /* NR11 - Ch1 Duty / Len */
         case 0x11: 
-            R_CHAN1.wave_duty = (val & NR11_WAVE_DUTY) >> 6;
-            R_CHAN1.sound_len = (val & NR11_SOUND_LEN);
+            WRITE_DUTY_LEN(&CH1.duty_len, val);
             return;
 
+        /* NR12 - Ch1 Envelope */
         case 0x12: 
-            R_CHAN1.init_volume = (val & NR12_INIT_VOLUME) >> 4;
-            R_CHAN1.env_dir = (val & NR12_ENV_DIR) >> 3;
-            R_CHAN1.env_sweep = (val & NR12_ENV_SWEEP);
+            WRITE_ENVELOPE(&CH1.envelope, val);
             return;
 
+        /* NR13 - Ch1 Lo Freq */
         case 0x13: 
-            R_CHAN1.freq = (R_CHAN1.freq & ~NR13_FREQ_LO)
-                         | (val & NR13_FREQ_LO);
+            WRITE_CHANNEL_LO(&CH1.channel, val);
             return;
 
+        /* NR14 - CH1 Init, Counter, Hi Freq */
         case 0x14: 
-            if (val & NR14_INIT)
-                {
-                R_NR52 |= NR52_CH1_ON;
-                R_CHAN1.env_enable = 1;
-                R_CHAN1.sound_counter = 0;
-                R_CHAN1.env_counter = 0;
-                R_CHAN1.sweep_counter = 0;
-                R_CHAN1.chan_init = 1;
-                }
-            R_CHAN1.counter_enable = (val & NR14_COUNTER) ? 1 : 0;
-            R_CHAN1.freq = (R_CHAN1.freq & NR13_FREQ_LO)
-                         | ((val & NR14_FREQ_HI) << 8);
+            WRITE_CHANNEL_HI(&CH1.channel, val);
             return;
 
-        case 0x15: R_NR20 = val;    
+        /* NR20 - Not Used */
+        case 0x15: return;
+
+        /* NR21 - Ch2 Duty / Len */
+        case 0x16: 
+            WRITE_DUTY_LEN(&CH2.duty_len, val);
             return;
-        case 0x16: //R_NR21 = val;    
-            if (R_NR24 & NR24_COUNTER)
-                {
-                R_NR21 = val;
-                }
-            else
-                {
-                R_NR21 = (val & NR21_WAVE_DUTY) | (R_NR21 & NR21_SOUND_LEN);
-                }
+
+        /* NR22 - Ch2 Envelope */
+        case 0x17: 
+            WRITE_ENVELOPE(&CH2.envelope, val);
             return;
-        case 0x17: R_NR22 = val;    
+
+        /* NR23 - Ch2 Lo Freq */
+        case 0x18:
+            WRITE_CHANNEL_LO(&CH2.channel, val);
             return;
-        case 0x18: R_NR23 = val;    
+
+        /* NR24 - Ch2 Init, Counter, Hi Freq */
+        case 0x19: 
+            WRITE_CHANNEL_HI(&CH2.channel,val);
             return;
-        case 0x19: R_NR24 = val;    
-            if (val & NR24_INIT)
-                {
-                R_NR52 |= NR52_CH2_ON;
-                R_CHANNEL2.envelope.disabled = 0;
-                }
+
+        /* NR30 - Ch3 Sound On */
+        case 0x1A: 
+            CH3.enable = (val & NR30_SOUND_ON_BIT) >> NR30_SOUND_ON_OFFS;
             return;
-        case 0x1A: R_NR30 = val;    
+
+        /* NR31 - Ch3 Sound Len */
+        case 0x1B: 
+            CH3.sound_len = val;
             return;
-        case 0x1B: //R_NR31 = val;    
-            if (R_NR34 & NR34_COUNTER)
-                {
-                R_NR31 = val;
-                }
+
+        /* NR32 - Ch3 Volume Out Level */
+        case 0x1C: 
+            CH3.out_level = (val >> NR32_OUT_LEVEL_OFFS) & NR32_OUT_LEVEL_BITS;
             return;
-        case 0x1C: R_NR32 = val;    
+
+        /* NR33 - Ch3 Lo Freq */
+        case 0x1D: 
+            WRITE_CHANNEL_LO(&CH3.channel, val);
             return;
-        case 0x1D: R_NR33 = val;    
+
+        /* NR34 - Ch3 Init, Counter, Hi Freq */
+        case 0x1E: 
+            WRITE_CHANNEL_HI(&CH3.channel, val);
             return;
-        case 0x1E: R_NR34 = val;    
-            if (val & NR34_INIT)
-                {
-                //printf("ch3\n");
-                R_NR52 |= NR52_CH3_ON;
-                R_CHANNEL3.seek = 0;
-                }
+
+        /* NR40 - Not Used */
+        case 0x1F: return;
+
+        /* NR41 - Ch4 Len Register */
+        case 0x20: 
+            WRITE_DUTY_LEN(&CH4.len, val);
             return;
-        case 0x1F: R_NR40 = val;    
+
+        /* NR42 - Ch4 Envelope */
+        case 0x21: 
+            WRITE_ENVELOPE(&CH4.envelope, val);
             return;
-        case 0x20: //R_NR41 = val;    
-            if (R_NR44 & NR44_COUNTER)
-                {
-                R_NR41 = val & NR41_SOUND_LEN;
-                }
+
+        /* NR43 - Ch4 Clock, Step, Ratio */
+        case 0x22: 
+            CH4.NR43 = val;
             return;
-        case 0x21: R_NR42 = val;    
+
+        /* NR44 - Ch4 Init, Counter */
+        case 0x23:  
+            WRITE_CHANNEL_HI(&CH4.channel, val);
             return;
-        case 0x22: R_NR43 = val;    
+
+        /* NR50 */
+        case 0x24: 
+            SO.NR50 = val;
             return;
-        case 0x23: R_NR44 = val;    
-            if (val & NR44_INIT)
-                {
-                R_NR52 |= NR52_CH4_ON;
-                R_CHANNEL4.envelope.disabled = 0;
-                }
+
+        /* NR51 */
+        case 0x25: 
+            SO.NR51 = val;
             return;
-        case 0x24: R_NR50 = val;    
-            return;
-        case 0x25: R_NR51 = val;    
-            return;
+
+        /* NR52 */
         case 0x26: 
-            R_NR52 = (val & NR52_ALL_SOUND) | (R_NR52 & NR52_STATUS);
+            SO.NR52 = (val & NR52_ALL_SOUND) | (SO.NR52 & NR52_STATUS);
             if (!(val & NR52_ALL_SOUND))
                 {
-                R_NR52 = 0;
+                SO.NR52 = 0;
                 }
             return;
+        
         // wave pattern RAM
         case 0x30: case 0x31: case 0x32: case 0x33: case 0x34: case 0x35: case 0x36: case 0x37: 
         case 0x38: case 0x39: case 0x3A: case 0x3B: case 0x3C: case 0x3D: case 0x3E: case 0x3F: 
-            ARAM[(addr - 0x30)] = val;
+            AUDIO_RAM[(addr - 0x30)] = val;
             return;
         }
     }
-
 
 /*
     Set up SDL to play sound.
@@ -338,7 +411,6 @@ u32 PERIOD(u16 xfreq)
 s16 RESAMPLE(u32 tick, u32 fp_period, u8 vol, u8 duty)
     {
     s16 svol = vol;
-    s32 sample;
     u8 fp_phase, phase;
     u32 subtick;
 
@@ -419,16 +491,6 @@ void RENDER_SOUND(u16 freq, u8 vol, u8 duty)
 void AudioUpdate()
     {
     u32 audio_cycle = audio_frame;
-    u16 freq; 
-    u32 period; 
-    u8 vol; 
-    u8 env;
-    u8 dir;
-    u8 duty;
-    u8 enable; 
-    u8 disable;
-    u8 sndlen; 
-    s16 sample;
     u32 i; 
 
     u32 filled = (buffer_end - buffer_start) % AUDIO_BUFFER_SIZE;
@@ -466,217 +528,28 @@ void AudioUpdate()
     //printf("audio count: %i fill: %i\n", sample_count, fill_amt);
 
     // audio is off
-    if (R_NR52 & NR52_ALL_SOUND)
+    if (SO.NR52 & NR52_ALL_SOUND)
         {
-#if 1
-        // channel 1
-        enable = 1; //(R_NR52 & NR52_CH1_ON);
 
-        disable = 
-            SOUND_COUNTER(
-                R_CHAN1.counter_enable, 
-                R_CHAN1.sound_len, 
-                &R_CHAN1.sound_counter
-            );
-
-        freq =
-            SWEEP_EFFECT(
-                &R_CHAN1.freq,
-                R_CHAN1.sweep_time,
-                R_CHAN1.sweep_dir,
-                R_CHAN1.sweep_shift,
-                &R_CHAN1.sweep_counter
-            );
-
-        vol = 
-            VOLUME_ENVELOPE(
-                &R_CHAN1.init_volume,
-                R_CHAN1.env_dir,
-                R_CHAN1.env_sweep,
-                &R_CHAN1.env_counter
-            );
-
-        if (disable)
-            {
-            R_NR52 = R_NR52 & ~NR52_CH1_ON;
-            }
-        else if (enable)
+        if (CH1.channel.initset)
             {
             RENDER_SOUND(
-                freq, 
-                vol, 
-                R_CHAN1.wave_duty
+                CH1.channel.freq,
+                CH1.envelope.volume,
+                CH1.duty_len.duty
             );
             }
-#endif
 
-#if 1
-        // channel 2
-        freq = (R_NR23 & NR23_FREQ_LO) | ((R_NR24 & NR24_FREQ_HI) << 8);
-        vol = (R_NR22 & NR22_INIT_VOLUME);
-        duty = (R_NR21 & NR21_WAVE_DUTY) >> 6;
-
-        // decrement length
-        if ((R_NR24 & NR24_COUNTER) && (R_NR21 & NR21_SOUND_LEN))
+        if (CH2.channel.initset)
             {
-            sndlen = (R_NR21 & NR21_SOUND_LEN) + 1;
-            R_NR21 = (R_NR21 & NR21_WAVE_DUTY) | (sndlen & NR21_SOUND_LEN);
-            if (sndlen & 0x40)
-                {
-                R_NR52 = R_NR52 & (~NR52_CH2_ON);
-                }
+            RENDER_SOUND(
+                CH2.channel.freq,
+                CH2.envelope.volume,
+                CH2.duty_len.duty
+            );
             }
-
-        // volume envelope
-        env = (R_NR22 & NR22_ENV_SWEEP);
-        // 64hz update
-        if (env && (audio_frame % 4) == 0)
-            {
-            // every 1 to 7 steps
-            if (((audio_frame / 4) % env) == 0)
-                {
-                dir = (R_NR22 & NR22_ENV_DIR);
-                // inc or dec
-                if (dir)
-                    {
-                    vol++;
-                    }
-                else
-                    {
-                    vol--;
-                    }
-                // check for disable
-                if (vol > 0x0F)
-                    {
-                    R_CHANNEL2.envelope.disabled = 1;
-                    }
-                else
-                    {
-                    // write back
-                    R_NR22 = (R_NR22 & ~NR12_INIT_VOLUME) | (vol << 4);
-                    }
-                }
-            }
-
-        enable = (R_NR52 & NR52_CH2_ON);
-        if (vol > 0 && freq > 0 && R_NR52 & enable) 
-            {
-            period = PERIOD(freq);
-            for (i = 0, fill_idx=fill_start; 
-                fill_idx != fill_end; 
-                i++, fill_idx=(fill_idx+1)%AUDIO_BUFFER_SIZE)
-                {
-                sample = RESAMPLE(sample_count+i, period, vol, duty);
-                AUDIO_BUFFER_L[fill_idx] += sample;
-                AUDIO_BUFFER_R[fill_idx] += sample;
-                }
-            }
-#endif
-
-#if 0
-        freq = (R_NR33 & NR33_FREQ_LO) | ((R_NR34 & NR34_FREQ_HI) << 8);
-        vol = (R_NR32 & NR32_OUT_LEVEL);
-
-        enable = (R_NR30 & NR30_SOUND_ON) && (R_NR52 & NR52_CH3_ON);
-        if (enable)
-            {
-            u32 seek; u8 aseek;
-            u32 tick;
-            for (i = 0, fill_idx=fill_start; 
-                fill_idx != fill_end; 
-                i++, fill_idx=(fill_idx+1)%AUDIO_BUFFER_SIZE)
-                {
-                // calculate sample
-                period = PERIOD(freq) / 0x20; 
-                period = period ? period : 1;
-                seek = R_CHANNEL3.seek + tick / period;
-
-                // break after sound length reached, if counting
-                if ((R_NR34 & NR34_COUNTER) && (seek > (0x100 - R_NR31)))
-                    {
-                    R_NR52 = R_NR52 & (~NR52_CH3_ON);
-                    break;
-                    }
-
-                if (vol)
-                    {
-                    aseek = seek % (2 * ARAM_SIZE);
-                    // grab sample
-                    u8 raw_sample = (ARAM[aseek/2] >> ((aseek % 2) ? 0 : 4)) & 0x0F;
-
-                    // volume attenuation
-                    sample = raw_sample << (10 - vol);
-
-                    // add to sound
-                    AUDIO_BUFFER_L[fill_idx] += sample;
-                    AUDIO_BUFFER_R[fill_idx] += sample;
-                    }
-                }
-            R_CHANNEL3.seek = seek;
-            }
-
-#endif
-
-#if 1
-        // channel 4
-        vol = (R_NR42 & NR42_INIT_VOLUME);
-
-        // decrement length
-        if ((R_NR44 & NR44_COUNTER) && (R_NR41 & NR41_SOUND_LEN))
-            {
-            sndlen = (R_NR41 & NR41_SOUND_LEN) + 1;
-            R_NR41 = (sndlen & NR41_SOUND_LEN);
-            if (sndlen & 0x40)
-                {
-                R_NR52 = R_NR52 & (~NR52_CH4_ON);
-                }
-            }    
-
-        // volume envelope
-        env = (R_NR42 & NR42_ENV_SWEEP) && !R_CHANNEL4.envelope.disabled;;
-        // 64hz update
-        if (env && (audio_frame % 4) == 0)
-            {
-            // every 1 to 7 steps
-            if (((audio_frame / 4) % env) == 0)
-                {
-                dir = (R_NR42 & NR42_ENV_DIR);
-                // inc or dec
-                if (dir)
-                    {
-                    vol++;
-                    }
-                else
-                    {
-                    vol--;
-                    }
-                // check for disable
-                if (vol > 0x0F)
-                    {
-                    R_CHANNEL4.envelope.disabled = 1;
-                    }
-                else
-                    {
-                    // write back
-                    R_NR42 = (R_NR42 & ~NR42_INIT_VOLUME) | (vol << 4);
-                    }
-                }
-            }
-
-        enable = (R_NR52 & NR52_CH4_ON);
-        if (vol > 0 && R_NR52 & enable) 
-            {
-            for (i = 0, fill_idx=fill_start; 
-                fill_idx != fill_end; 
-                i++, fill_idx=(fill_idx+1)%AUDIO_BUFFER_SIZE)
-                {
-                sample = NOISE(sample_count+i, vol);
-                AUDIO_BUFFER_L[fill_idx] += sample;
-                AUDIO_BUFFER_R[fill_idx] += sample;
-                }
-            }
-#endif
         }
+
 
 #ifdef SAVE_AUDIO_DATA_RAW
     for (i = 0, fill_idx=fill_start; 
