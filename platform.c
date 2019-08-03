@@ -109,6 +109,66 @@ FILE* save_f;
 
 SDL_GameController* controller = NULL;
 
+
+/*
+    Set up SDL to play sound.
+*/
+void SDLFillAudio(void* udata, u8* stream, int len);
+void SDLAudioStart()
+    {
+#if defined(SAVE_AUDIO_DATA_RAW) || defined(SAVE_AUDIO_DATA_SDL)
+    raw = fopen("out/sound.out", "w");
+#endif
+
+    SDL_AudioSpec wanted;
+    wanted.freq = SAMPLING_RATE;
+    wanted.format = AUDIO_S16;
+    wanted.channels = AUDIO_CHANNELS;
+    wanted.samples = SAMPLING_SIZE;
+    wanted.callback = SDLFillAudio;
+    wanted.userdata = NULL;
+
+    if (SDL_OpenAudio(&wanted, NULL) < 0)
+        {
+        printf("Error opening audio.\n");
+        }
+    printf("Opened audio for playback.\n");
+    SDL_PauseAudio(0);
+    }
+
+/*
+    Provide sound to SDL audio.
+*/
+void SDLFillAudio(void* udata, u8* stream_u8, int len)
+    {
+    s16* stream = (s16*)(stream_u8);
+    u32 i; u8 flag = 0;
+
+    len = (len/2) - 1;
+
+    for (i = 0; i < len;)
+        {
+        if (buffer_start != buffer_end)
+            {
+            stream[i++] = AUDIO_BUFFER_L[buffer_start];
+            stream[i++] = AUDIO_BUFFER_R[buffer_start];
+            buffer_start = (buffer_start + 1) % AUDIO_BUFFER_SIZE;
+            }    
+        else
+            {
+            flag = 1;
+            stream[i++] = 0;
+            stream[i++] = 0;
+            }
+        }
+    if (flag) printf("audio buffer underflow\n");
+
+#ifdef SAVE_AUDIO_DATA_SDL
+    fwrite(stream, sizeof(stream[0]), len, raw);
+#endif
+    }
+
+
 #if 0
 int SDL_main(int argc, char **argv)
 #else
