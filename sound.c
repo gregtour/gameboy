@@ -127,7 +127,7 @@ u8 READ_ENVELOPE(ENVELOPE* env)
     return (
         ((env->volume << INIT_VOLUME_OFFS) & INIT_VOLUME_BITS) |
         ((env->dir << ENV_DIR_OFFS) & ENV_DIR_BIT) |
-        ((env->sweep << ENV_SWEEP_OFFS) & ENV_SWEEP_BITS)
+        ((env->period << ENV_SWEEP_OFFS) & ENV_SWEEP_BITS)
     );
     }
 
@@ -135,7 +135,8 @@ void WRITE_ENVELOPE(ENVELOPE* env, u8 value)
     {
     env->volume = (value & INIT_VOLUME_BITS) >> INIT_VOLUME_OFFS;
     env->dir = (value & ENV_DIR_BIT) >> ENV_DIR_OFFS;
-    env->sweep = (value & ENV_SWEEP_BITS) >> ENV_SWEEP_OFFS;
+    env->period = (value & ENV_SWEEP_BITS) >> ENV_SWEEP_OFFS;
+    env->timer = 0;
     }
 
 // channel frequency, init, count enable function
@@ -153,19 +154,36 @@ void WRITE_CHANNEL_LO(CHANNEL* channel, u8 value)
 u8 READ_CHANNEL_HI(CHANNEL* channel)
     {
     return (
-        (channel->counter << COUNTER_OFFS) & COUNTER_BIT
+        (channel->counterset << COUNTER_OFFS) & COUNTER_BIT
     );
     }
 
 void WRITE_CHANNEL_HI(CHANNEL* channel, u8 value, u8 channel_num)
     {
     channel->initset = (value & INIT_BIT);
-    channel->counter = (value & COUNTER_BIT) >> COUNTER_OFFS;
+    channel->counterset = (value & COUNTER_BIT) >> COUNTER_OFFS;
     channel->freq = (channel->freq & FREQ_LO_MASK) | ((value & FREQ_HI_BITS) << 8);
     if (!channel->enable && channel->initset)
         {
         channel->enable = 1;
         channel->timer = 0;
+        switch (channel_num)
+            {
+            case 1:
+                CH1.envelope.disabled = 0;
+                CH1.envelope.timer = 0;
+            break;
+            case 2:
+                CH2.envelope.disabled = 0;
+                CH2.envelope.timer = 0;
+            break;
+            case 3:
+            break;
+            case 4:
+                CH4.envelope.disabled = 0;
+                CH4.envelope.timer = 0;
+            break;
+            }
         }
     }
 
@@ -306,7 +324,46 @@ void CHANNEL_UPDATE(
     u8 audio_cycle
     )
     {
+    if (channel->enable && channel->counterset)
+        {
+        channel->timer++;
+        if (channel->timer == sound_len)
+            {
+            channel->enable = 0;
+            }
+        }
+
     return;
+    }
+
+void ENVELOPE_UPDATE(ENVELOPE* envelope, u8 audio_cycle)
+    {
+    if (audio_cycle == 7 &&
+        envelope->period != 0 && 
+        !envelope->disabled)
+        {
+        envelope->timer = (envelope->timer + 1) % envelope->period;
+        if (envelope->timer == 0)
+            {
+            u8 new_vol = envelope->volume;
+            if (envelope->dir)
+                {
+                new_vol++;
+                }
+            else
+                {
+                new_vol--;
+                }
+            if (new_vol <= 16)
+                {
+                envelope->volume = new_vol;
+                }
+            else
+                {
+                envelope->disabled = 1;
+                }
+            }
+        }
     }
 
 
@@ -361,7 +418,7 @@ s16 RESAMPLE(u32 tick, u32 fp_period, u8 vol, u8 duty)
 
 
 // modify soundwave
-void WAVE_SOUND(u16 freq, u8 vol, u8 duty)
+void GENERATE_WAVE(u16 freq, u8 vol, u8 duty)
     {
     s16 sample;
     u32 period;
@@ -380,6 +437,22 @@ void WAVE_SOUND(u16 freq, u8 vol, u8 duty)
         }
     }
 
+void GENERATE_NOISE(u8 vol)
+    {
+    s16 sample;
+    u32 i;
+    if (vol > 0)
+        {
+        for (i = 0, fill_idx=fill_start; 
+            fill_idx != fill_end; 
+            i++, fill_idx=(fill_idx+1)%AUDIO_BUFFER_SIZE)
+            {
+            sample = NOISE(sample_count+i, vol);
+            AUDIO_BUFFER_L[fill_idx] += sample;
+            AUDIO_BUFFER_R[fill_idx] += sample;
+            }
+        }
+    }
 
 /*
     Handle audio logic and generate sound at 256hz
@@ -433,35 +506,60 @@ void AudioUpdate()
         Channel logic and sound generation.
     */
 
+    CHANNEL_UPDATE(
+        &CH1.channel, 1,
+        64 - CH2.duty_len.len,
+        audio_cycle
+    );
 
     if (CH1.channel.enable)
         {
-        CHANNEL_UPDATE(
-            &CH1.channel, 1,
-            64 - CH2.duty_len.len,
+        ENVELOPE_UPDATE(
+            &CH1.envelope,
             audio_cycle
         );
 
-        WAVE_SOUND(
+        GENERATE_WAVE(
             CH1.channel.freq,
             CH1.envelope.volume,
             CH1.duty_len.duty
         );
         }
 
+    CHANNEL_UPDATE(
+        &CH2.channel, 2,
+        64 - CH2.duty_len.len,
+        audio_cycle
+    );
+
     if (CH2.channel.enable)
         {
-        CHANNEL_UPDATE(
-            &CH2.channel, 1,
-            64 - CH2.duty_len.len,
+        ENVELOPE_UPDATE(
+            &CH2.envelope,
             audio_cycle
         );
 
-        WAVE_SOUND(
+        GENERATE_WAVE(
             CH2.channel.freq,
             CH2.envelope.volume,
             CH2.duty_len.duty
         );
+        }
+
+    CHANNEL_UPDATE(
+        &CH4.channel, 4,
+        64 - CH4.len.len,
+        audio_cycle
+        );
+
+    if (CH4.channel.enable)
+        {
+        ENVELOPE_UPDATE(
+            &CH4.envelope,
+            audio_cycle
+        );
+
+        GENERATE_NOISE(CH4.envelope.volume);
         }
     
     /*

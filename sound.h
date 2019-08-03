@@ -79,7 +79,7 @@ typedef struct {
     u8  disabled;
     u8  volume;
     u8  dir;
-    u8  sweep;
+    u8  period;
     u16 timer;
 } ENVELOPE;
 
@@ -95,7 +95,7 @@ typedef struct {
 typedef struct {
     u8  enable;
     u8  initset;
-    u8  counter;
+    u8  counterset;
     u16 freq;
     u16 timer;
 } CHANNEL;
