@@ -8,6 +8,8 @@
 #include "gameboy.h"
 #include "sound.h"
 
+#define printf(...)     ;
+
 // CART /////////////////////////////
 u8* ROM;
 u8* CRAM;
@@ -255,7 +257,11 @@ u8 READ(u16 addr)
                 case 0xFF: return R_IE;
                 
                 // High RAM
-                default:   return HRAM[addr - HRAM_ADDR];
+                default:   
+                    if (addr >= HRAM_ADDR) 
+                        {
+                        return HRAM[addr - HRAM_ADDR];
+                        }
                 }
         }
     return 0;
@@ -474,22 +480,27 @@ void WRITE(u16 addr, u8 val)
 
                 // CGB HDMA
                 case 0x51:
+                    printf("HDMA\n");
                     if (cgb_enable && (R_HDMA & HDMA_OFF))
                         R_HDMAS = (val << 8) | (R_HDMAS & 0x00F0);
                     return;
                 case 0x52:
+                    printf("HDMA\n");
                     if (cgb_enable && (R_HDMA & HDMA_OFF))
                         R_HDMAS = (R_HDMAS & 0xFF00) | (val & 0x00F0);
                     return;
                 case 0x53:
+                    printf("HDMA\n");
                     if (cgb_enable && (R_HDMA & HDMA_OFF))
                         R_HDMAD = 0x8000 | ((val << 8) & 0x1F00) | (R_HDMAD & 0x00F0);
                     return;
                 case 0x54:
+                    printf("HDMA\n");
                     if (cgb_enable && (R_HDMA & HDMA_OFF))
                         R_HDMAD = 0x8000 | (R_HDMAD & 0x1F00) | (val & 0x00F0);
                     return;  
                 case 0x55:
+                    printf("HDMA\n");
                     if (val & HDMA_HBLANK)
                         {
                         // set length to copy
@@ -543,7 +554,10 @@ void WRITE(u16 addr, u8 val)
                 
                 // High RAM
                 default:
-                    HRAM[addr - HRAM_ADDR] = val;
+                    if (addr >= HRAM_ADDR)
+                        {
+                        HRAM[addr - HRAM_ADDR] = val;
+                        }
                     return;
                 }
         }
@@ -650,6 +664,7 @@ void StepCPU()
     // Execute one instruction
     OP = (gb_halt ? 0x00 : READ(PC++));
     inst_cycles = OP_CYCLES[OP];
+    printf("%i;", OP);
     switch (OP)
         {
         case 0x00: // NOP
@@ -739,6 +754,7 @@ void StepCPU()
                 // check for CGB speed change
                 if (R_KEY1 & 0x01)
                     {
+                    printf("DOUBLE SPEED\n");
                     cgb_double = !cgb_double;
                     R_KEY1 = 0x00;
                     }
@@ -1205,6 +1221,7 @@ void StepCPU()
             R_A = R_L;
             break;
         case 0x7E: // LD A, (HL)
+            printf("%i;;", R_HL);
             R_A = READ(R_HL);
             break;
         case 0x7F: // LD A, A

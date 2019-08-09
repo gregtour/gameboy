@@ -2,6 +2,8 @@
  * gameboy.h * 
 *************/
 
+#include <stdint.h>
+
 #define SDL_1_2     0
 #define SDL_2_0     1
 
@@ -9,12 +11,15 @@
 #define CPU_CLOCKSPEED		4000000
 
 // types
-typedef unsigned int u32;
-typedef unsigned short u16;
-typedef unsigned char u8;
-typedef signed char s8;
-typedef signed short s16;
-typedef signed int s32;
+typedef uint64_t	u64;
+typedef uint32_t 	u32;
+typedef uint16_t 	u16;
+typedef uint8_t		u8;
+typedef int8_t 		s8;
+typedef int16_t 	s16;
+typedef int32_t 	s32;
+typedef int64_t 	s64;
+
 
 #ifndef NULL
 #define NULL 0L
