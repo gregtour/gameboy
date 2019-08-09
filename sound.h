@@ -3,6 +3,8 @@
 
 #include "SDL_audio.h"
 
+#define SAVE_AUDIO_DATA_RAW
+
 #define SQUARE_WAVE
 //#define TRIANGLE_WAVE
 
@@ -12,7 +14,7 @@
 #define AUDIO_CHANNELS 		2
 
 // Platform sound debug
-#ifdef SAVE_AUDIO_DATA_SDL
+#if defined(SAVE_AUDIO_DATA_RAW) || defined(SAVE_AUDIO_DATA_SDL)
 extern FILE* raw;
 #endif
 
@@ -38,6 +40,8 @@ void AudioUpdate();
 
 // NR10 sweep register
 
+#define MAX_FREQ            2048
+
 #define SWEEP_TIME_BITS 	(0x70)
 #define SWEEP_TIME_OFFS		(4)
 #define SWEEP_DIR_BIT 		(0x08)
@@ -46,10 +50,11 @@ void AudioUpdate();
 #define SWEEP_SHIFT_OFFS 	(0)
 
 typedef struct {
+    u8  enabled;
+    u16 freq;
     u8  time;
     u8  dir;
     u8  shift;
-    u16 freq;
     u16 timer;
 } SWEEP;
 
@@ -170,6 +175,7 @@ typedef struct {
     u8          sound_len;  /* NR31 */
     u8          out_level;  /* NR32 */
     CHANNEL     channel;    /* NR33, NR34 */
+    u8          pos_counter;
 } CH3_t;
 
 // Audio Channel 4 - Noise
@@ -179,6 +185,7 @@ typedef struct {
     ENVELOPE    envelope;   /* NR42 */
     u8          NR43;       /* NR43 */
     CHANNEL     channel;    /* NR44 */ // no freq
+    u16         LFSR;
 } CH4_t;
 
 // Sound system settings

@@ -178,6 +178,7 @@ void WRITE_CHANNEL_HI(CHANNEL* channel, u8 value, u8 channel_num)
                 CH2.envelope.timer = 0;
             break;
             case 3:
+                CH3.pos_counter = 0;
             break;
             case 4:
                 CH4.envelope.disabled = 0;
@@ -288,7 +289,7 @@ void AUDIO_WRITE(u8 addr, u8 val)
         /* NR31 - Ch3 Sound Len */
         case 0x1B: CH3.sound_len = val; return;
         /* NR32 - Ch3 Volume Out Level */
-        case 0x1C: CH3.out_level = (val >> NR32_OUT_LEVEL_OFFS) & NR32_OUT_LEVEL_BITS; return;
+        case 0x1C: CH3.out_level = (val & NR32_OUT_LEVEL_BITS) >> NR32_OUT_LEVEL_OFFS; return;
         /* NR33 - Ch3 Lo Freq */
         case 0x1D: WRITE_CHANNEL_LO(&CH3.channel, val); return;
         /* NR34 - Ch3 Init, Counter, Hi Freq */
@@ -336,9 +337,43 @@ void CHANNEL_UPDATE(
     return;
     }
 
+void SWEEP_UPDATE(CHANNEL* channel, SWEEP* sweep, u8 audio_cycle)
+    {
+    if (audio_cycle % 2) return;
+
+    if (sweep->time && sweep->shift)
+        {
+        sweep->timer = (sweep->timer + 1) % sweep->time;
+        if (sweep->timer == 0)
+            {
+            u16 freq, offset;
+            sweep->freq = channel->freq;
+            offset = (sweep->freq >> sweep->shift);
+
+            if (sweep->dir)
+                {
+                freq = sweep->freq - offset;
+                }
+            else
+                {
+                freq = sweep->freq + offset;
+                }
+
+            if (freq < MAX_FREQ)
+                {
+                channel->freq = freq;
+                }
+            else
+                {
+                channel->enable = 0;
+                }
+            }
+        }
+    }
+
 void ENVELOPE_UPDATE(ENVELOPE* envelope, u8 audio_cycle)
     {
-    if (audio_cycle == 7 &&
+    if (audio_cycle == 3 &&
         envelope->period != 0 && 
         !envelope->disabled)
         {
@@ -368,7 +403,7 @@ void ENVELOPE_UPDATE(ENVELOPE* envelope, u8 audio_cycle)
 
 
 /* Generate 'noise' */
-s16 NOISE(u32 tick, u8 vol)
+s16 NOISE(u32 tick, u8 vol, u8 tone)
     {
     s16 svol = vol / 0x02;
     static u32 rand_state = 0xF390439F;
@@ -380,19 +415,19 @@ s16 NOISE(u32 tick, u8 vol)
 /* Process GB frequency value. */
 u32 PERIOD(u16 xfreq)
     {
-    u32 fp_conversion = (0x10 * SAMPLING_RATE / AUDIO_SAMPLING_RATE);
-    return (fp_conversion * (2048 - xfreq));
+    //u32 fp_conversion = (0x100 * SAMPLING_RATE / AUDIO_SAMPLING_RATE);
+    return (0x10 * SAMPLING_RATE * (2048 - xfreq) / AUDIO_SAMPLING_RATE);
     }
 
 /* Signal generator */
 s16 RESAMPLE(u32 tick, u32 fp_period, u8 vol, u8 duty)
     {
     s16 svol = vol;
-    u8 fp_phase, phase;
+    //u8 fp_phase, phase;
     u32 subtick;
 
-    fp_phase = ((0x10 * tick / fp_period) % 0x80);
-    phase = fp_phase / 0x10;
+    //fp_phase = ((0x10 * tick / fp_period) % 0x80);
+    //phase = fp_phase / 0x10;
     subtick = ((0x10 * tick) % fp_period) * 0x80 / fp_period;
 
 #ifdef SQUARE_WAVE
@@ -437,7 +472,37 @@ void GENERATE_WAVE(u16 freq, u8 vol, u8 duty)
         }
     }
 
-void GENERATE_NOISE(u8 vol)
+void GENERATE_CH3(u16 freq, u8 vol)
+    {
+    s16 sample;
+    u32 fp_period;
+    u32 i, tick, index;
+    u8 byte, nibble;
+
+    if (vol)
+        {
+        fp_period = PERIOD(freq);
+        for (i = 0, fill_idx=fill_start;
+            fill_idx != fill_end;
+            i++, fill_idx=(fill_idx+1)%AUDIO_BUFFER_SIZE)
+            {                
+            tick = CH3.pos_counter + i;
+            index = ((0x08 * tick) / fp_period);
+            byte = (index / 2) % AUDIO_RAM_SIZE;
+            nibble = 1 - (index % 2);
+
+            sample = (AUDIO_RAM[byte] >> (4 * nibble)) & 0x0F; 
+            sample = (sample) * (1 << (9 - vol));
+
+            // sample_count+i
+            AUDIO_BUFFER_L[fill_idx] += sample;
+            AUDIO_BUFFER_R[fill_idx] += sample;
+            }
+        }
+    CH3.pos_counter += fill_amt;
+    }
+
+void GENERATE_NOISE(u8 vol, u8 tone)
     {
     s16 sample;
     u32 i;
@@ -447,7 +512,7 @@ void GENERATE_NOISE(u8 vol)
             fill_idx != fill_end; 
             i++, fill_idx=(fill_idx+1)%AUDIO_BUFFER_SIZE)
             {
-            sample = NOISE(sample_count+i, vol);
+            sample = NOISE(sample_count+i, vol, tone);
             AUDIO_BUFFER_L[fill_idx] += sample;
             AUDIO_BUFFER_R[fill_idx] += sample;
             }
@@ -463,7 +528,7 @@ void AudioUpdate()
         Audio buffer housekeeping.
     */
     u32 i; 
-    u8 audio_cycle = (audio_frame % 8);
+    u8 audio_cycle = (audio_frame % 4);
     u32 filled = (buffer_end - buffer_start) % AUDIO_BUFFER_SIZE;
     u32 capacity = (buffer_start - buffer_end - 1) % AUDIO_BUFFER_SIZE - SAMPLING_SIZE;
 
@@ -506,14 +571,22 @@ void AudioUpdate()
         Channel logic and sound generation.
     */
 
+    // Channel 1
+
     CHANNEL_UPDATE(
         &CH1.channel, 1,
         64 - CH2.duty_len.len,
         audio_cycle
     );
 
-    if (CH1.channel.enable)
+    if (CH1.channel.enable && 1)
         {
+        SWEEP_UPDATE(
+            &CH1.channel,
+            &CH1.sweep,
+            audio_cycle
+        );
+
         ENVELOPE_UPDATE(
             &CH1.envelope,
             audio_cycle
@@ -526,13 +599,15 @@ void AudioUpdate()
         );
         }
 
+    // Channel 2
+
     CHANNEL_UPDATE(
         &CH2.channel, 2,
         64 - CH2.duty_len.len,
         audio_cycle
     );
 
-    if (CH2.channel.enable)
+    if (CH2.channel.enable && 1)
         {
         ENVELOPE_UPDATE(
             &CH2.envelope,
@@ -546,20 +621,36 @@ void AudioUpdate()
         );
         }
 
+
+    // Channel 3
+
+    CHANNEL_UPDATE(
+        &CH3.channel, 3,
+        256 - CH3.sound_len,
+        audio_cycle);
+
+    if (CH3.channel.enable && CH3.enable)
+        {
+        GENERATE_CH3(CH3.channel.freq, CH3.out_level);
+        }
+
+
+    // Channel 4
+
     CHANNEL_UPDATE(
         &CH4.channel, 4,
         64 - CH4.len.len,
         audio_cycle
         );
 
-    if (CH4.channel.enable)
+    if (CH4.channel.enable && 1)
         {
         ENVELOPE_UPDATE(
             &CH4.envelope,
             audio_cycle
         );
 
-        GENERATE_NOISE(CH4.envelope.volume);
+        GENERATE_NOISE(CH4.envelope.volume, CH4.NR43 & NR43_DIV_RATIO_BITS);
         }
     
     /*
