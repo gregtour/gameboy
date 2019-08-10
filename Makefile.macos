@@ -3,7 +3,7 @@
 BIN = out/gameboy
 INCLUDES = -I /usr/local/Cellar/sdl2/2.0.9_1/include/SDL2/ -L /usr/local/Cellar/sdl2/2.0.9_1/lib
 
-SOURCES = gameboy.c platform.c sound.c screen.c bios.c
+SOURCES = gameboy.c bios.c screen.c sound.c platform.c inspector.c font.c
 
 MAKE_OPTIONS = -Wall -std=c99 -g
 #-O3 

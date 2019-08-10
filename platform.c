@@ -16,10 +16,13 @@
 #include "gameboy.h"
 #include "sound.h"
 
-#define SCALE_FACTOR        (2)
+// Runtime
+#include "platform.h"
+#include "inspector.h"
 
 // emulator data
 int running = 1;
+int step_debugger = 0;
 SDL_Event event;
 u8   frameskip = 0;
 u8   frames;
@@ -29,15 +32,11 @@ u16  fps;
 
 // screen space
 SDL_Surface* screen = NULL;
-#if SDL_1_2
-#else
+
 SDL_Window* window;
 SDL_Renderer* renderer;
 SDL_Texture* screen_tex = NULL;
-#endif
 
-const int SCR_WIDTH = 320;
-const int SCR_HEIGHT = 288;
 u32 fb[LCD_HEIGHT][LCD_WIDTH];
 
 // color schemes
@@ -100,15 +99,18 @@ char* rom_file = rom_file_buf;
 char  save_file[260];
 
 // pointers
-u8*   rom;
-u32   rom_size;
-u8*   save;
-u32   save_size;
-FILE* rom_f;
-FILE* save_f;
+u8*   rom = NULL;
+u32   rom_size = 0;
+u8*   save = NULL;
+u32   save_size = 0;
+FILE* rom_f = NULL;
+FILE* save_f = NULL;
 
+// input
 SDL_GameController* controller = NULL;
 
+// debug view
+u8 enable_inspector = 1;
 
 /*
     Set up SDL to play sound.
@@ -161,7 +163,10 @@ void SDLFillAudio(void* udata, u8* stream_u8, int len)
             stream[i++] = 0;
             }
         }
-    if (flag) printf("audio buffer underflow\n");
+    if (flag && !step_debugger) 
+        {
+        printf("audio buffer underflow\n");
+        }
 
 #ifdef SAVE_AUDIO_DATA_SDL
     fwrite(stream, sizeof(stream[0]), len, raw);
@@ -169,11 +174,7 @@ void SDLFillAudio(void* udata, u8* stream_u8, int len)
     }
 
 
-#if 0
-int SDL_main(int argc, char **argv)
-#else
 int main(int argc, char **argv)
-#endif
     {
     int     i, x, y;
     u8      j;
@@ -186,27 +187,27 @@ int main(int argc, char **argv)
 
     // Init SDL
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
-#if SDL_1_2
-    screen = SDL_SetVideoMode(SCR_WIDTH, SCR_HEIGHT, 32, SDL_HWSURFACE | SDL_DOUBLEBUF /*| SDL_FULLSCREEN*/);
-    SDL_WM_SetCaption("GameBoy", 0);
-#else
     window = SDL_CreateWindow("GameBoy", SDL_WINDOWPOS_CENTERED, 
                                 SDL_WINDOWPOS_CENTERED,
-                                SCR_WIDTH * SCALE_FACTOR, SCR_HEIGHT * SCALE_FACTOR,
+                                WINDOW_WIDTH, WINDOW_HEIGHT,
                                 SDL_WINDOW_SHOWN | SDL_WINDOW_INPUT_FOCUS);
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
     SDL_RenderPresent(renderer);
-    screen_tex = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, SCR_WIDTH, SCR_HEIGHT);
+    screen_tex = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, LCD_WIDTH, LCD_HEIGHT);
 
-    screen = SDL_CreateRGBSurface(0, SCR_WIDTH, SCR_HEIGHT, 32, 0xFF000000, 0x00FF0000, 0x0000FF00, 0x000000FF);
+    screen = SDL_CreateRGBSurface(0, LCD_WIDTH, LCD_HEIGHT, 32, 0xFF000000, 0x00FF0000, 0x0000FF00, 0x000000FF);
 
     printf("Num gamepads: %i\n", SDL_NumJoysticks());
     controller = SDL_GameControllerOpen(0);
-    if (controller) printf("Gamepad connected.\n");
-#endif
+    if (controller) 
+        {
+        printf("Gamepad connected.\n");
+        }
 
+    // Start inspector
+    InspectorStartup(renderer);
 
     // Start Audio
     SDLAudioStart();
@@ -229,15 +230,16 @@ int main(int argc, char **argv)
                 s = &rom_file[i+1];
             }
         sprintf(window_caption, "GameBoy - %s", s);
-#if SDL_1_2
-        SDL_WM_SetCaption(window_caption, 0);
-#else
         SDL_SetWindowTitle(window, window_caption);
-#endif
         }
 
     // Load ROM file
     rom_f = fopen(rom_file, "rb");
+    if (rom_f == NULL)
+        {
+        printf("Failed to load ROM: %s\n", rom_file);
+        goto bye;
+        }
     fseek(rom_f, 0, SEEK_END);
     rom_size = ftell(rom_f);
     rewind(rom_f);
@@ -275,9 +277,30 @@ int main(int argc, char **argv)
             {
             if (event.type == SDL_QUIT)
                 running = 0;
+            
+            if (event.type == SDL_MOUSEBUTTONUP)
+                {
+                if (enable_inspector)
+                    {
+                    InspectorClick(event.button.x, event.button.y);
+                    }
+                }
+
             if (event.type == SDL_KEYDOWN)
                 {
-                if (event.key.keysym.sym == SDLK_0)
+                if (event.key.keysym.sym == SDLK_F5)
+                    {
+                    enable_inspector = !enable_inspector;
+                    }
+                else if (event.key.keysym.sym == SDLK_p && enable_inspector)
+                    {
+                    step_debugger = !step_debugger;
+                    }
+                else if (event.key.keysym.sym == SDLK_n && step_debugger)
+                    {
+                    StepCPU();
+                    }
+                else if (event.key.keysym.sym == SDLK_0)
                     {
                     frameskip = 0;
                     SetFrameSkip(0);
@@ -363,7 +386,10 @@ int main(int argc, char **argv)
         old_ticks = SDL_GetTicks();
 
         // emulate frame
-        RunFrame();
+        if (!step_debugger)
+            {
+            RunFrame();
+            }
 
         if (gb_framecount == 0)
             {
@@ -383,35 +409,50 @@ int main(int argc, char **argv)
 
             // copy framebuffer
             s = (u32*)screen->pixels;
-            for (y = 0; y < SCR_HEIGHT; y++)
+            for (y = 0; y < LCD_HEIGHT; y++)
                 {
-                for (x = 0; x < SCR_WIDTH; x++)
-                    *(s + x) = fb[y*LCD_HEIGHT/SCR_HEIGHT][x*LCD_WIDTH/SCR_WIDTH];
+                for (x = 0; x < LCD_WIDTH; x++)
+                    *(s + x) = fb[y][x];
                 s += screen->pitch/4;
                 }
 
             // flip screen
             SDL_UnlockSurface(screen);
-#if SDL_1_2
-            SDL_Flip(screen);
-#else
+
             SDL_UpdateTexture(screen_tex, NULL, screen->pixels, screen->pitch);
 
-            // SDL_Rect screen_tex_rect;
-            // screen_tex_rect.x = 0;
-            // screen_tex_rect.y = 0;
-            // screen_tex_rect.w = SCR_WIDTH;
-            // screen_tex_rect.h = SCR_HEIGHT;
-            // SDL_Rect renderer_rect;
-            // renderer_rect.x = 0;
-            // renderer_rect.y = 0;
-            // renderer_rect.w = SCR_WIDTH;
-            // renderer_rect.h = SCR_HEIGHT;
+            SDL_Rect screen_tex_rect;
+            screen_tex_rect.x = 0;
+            screen_tex_rect.y = 0;
+            screen_tex_rect.w = LCD_WIDTH;
+            screen_tex_rect.h = LCD_HEIGHT;
+
+            SDL_Rect renderer_rect;
+            if (enable_inspector)
+                {
+                renderer_rect.x = 10;
+                renderer_rect.y = LCD_HEIGHT;
+                renderer_rect.w = LCD_WIDTH * 2;// * SCALE_FACTOR;
+                renderer_rect.h = LCD_HEIGHT * 2;// * SCALE_FACTOR;
+                }
+            else
+                {
+                renderer_rect.x = 0;
+                renderer_rect.y = 0;
+                renderer_rect.w = WINDOW_WIDTH;// * SCALE_FACTOR;
+                renderer_rect.h = WINDOW_HEIGHT;// * SCALE_FACTOR;
+                }
 
             SDL_RenderClear(renderer);
-            SDL_RenderCopy(renderer, screen_tex, NULL, NULL);
+
+            if (enable_inspector)
+                {   
+                InspectorDraw(renderer);
+                }
+
+            SDL_RenderCopy(renderer, screen_tex, &screen_tex_rect, &renderer_rect);
+
             SDL_RenderPresent(renderer);
-#endif
 
             //old_ticks = new_ticks;
             new_ticks = SDL_GetTicks();
@@ -422,11 +463,8 @@ int main(int argc, char **argv)
                 f1_ticks = new_ticks;
                 fps = (128*1000)/(f1_ticks - f0_ticks) * (gb_frameskip ? gb_frameskip : 1);
                 sprintf(window_caption_fps, "%s - %u fps", window_caption, fps);
-#if SDL_1_2
-                SDL_WM_SetCaption(window_caption_fps, 0);
-#else
+
                 SDL_SetWindowTitle(window, window_caption_fps);
-#endif
                 }
 
             // Cap at 60FPS unless using frameskip
@@ -449,10 +487,9 @@ int main(int argc, char **argv)
             }
         }
 
-#if SDL_2_0
     SDL_FreeSurface(screen);
-#endif
 
+bye:
     // Clean up
     free(rom);
     free(save);

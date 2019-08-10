@@ -2,10 +2,10 @@
  * gameboy.h * 
 *************/
 
-#include <stdint.h>
+#ifndef _GAMEBOY_H
+#define _GAMEBOY_H
 
-#define SDL_1_2     0
-#define SDL_2_0     1
+#include <stdint.h>
 
 //#define CPU_CLOCKSPEED		0x400000
 #define CPU_CLOCKSPEED		4000000
@@ -226,3 +226,16 @@ extern u16 OCPD[4*8];
 #define PAL_AUTO_INCREMENT  0x80
 #define PAL_INDEX           0x3F
 #define PAL_CONTROL_BITS    (PAL_AUTO_INCREMENT | PAL_INDEX)
+
+// CPU REGISTERS
+extern u8 R_A;
+extern u8 R_B; extern u8 R_C;
+extern u8 R_D; extern u8 R_E;
+extern u8 R_H; extern u8 R_L;
+extern u16 SP;
+extern u16 PC;
+
+// MEMORY
+u8 READ(u16 addr);
+
+#endif // _GAMEBOY_H
