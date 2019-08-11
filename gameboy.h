@@ -266,6 +266,7 @@ extern u8 R_D; extern u8 R_E;
 extern u8 R_H; extern u8 R_L;
 extern u16 SP;
 extern u16 PC;
+extern u16 prev_PC;
 
 // REGISTERS
 extern u8 R_P1;    extern u8 R_SB;    extern u8 R_SC;    extern u8 R_DIV;

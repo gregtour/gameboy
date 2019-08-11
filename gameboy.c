@@ -591,7 +591,7 @@ u8 R_B; u8 R_C;
 u8 R_D; u8 R_E;
 u8 R_H; u8 R_L;
 u16 SP;
-u16 PC;
+u16 PC; u16 prev_PC;
 
 #define R_BC    (R_B << 8 | R_C)
 #define R_DE    (R_D << 8 | R_E)
@@ -662,6 +662,7 @@ void StepCPU()
         }
     
     // Execute one instruction
+    prev_PC = PC;
     OP = (gb_halt ? 0x00 : READ(PC++));
     inst_cycles = OP_CYCLES[OP];
     printf("%i;", OP);
@@ -757,6 +758,7 @@ void StepCPU()
                     printf("DOUBLE SPEED\n");
                     cgb_double = !cgb_double;
                     R_KEY1 = 0x00;
+                    gb_halt = 0;
                     }
                 }
             break;

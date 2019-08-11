@@ -7,6 +7,7 @@
 // File IO
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 
 // SDL
 #include "SDL.h"
@@ -18,11 +19,20 @@
 
 // Runtime
 #include "platform.h"
+#include "config.h"
 #include "inspector.h"
+
+
+struct {
+    u8      enabled;
+    u8      paused;
+    u16*    breakpoints;
+    u16     breakpoints_count;
+    u16     breakpoints_size;
+} debugger = {0, 0, NULL, 0, 0};
 
 // emulator data
 int running = 1;
-int step_debugger = 1;
 SDL_Event event;
 u8   frameskip = 0;
 u8   frames;
@@ -30,8 +40,10 @@ u32  f0_ticks;
 u32  f1_ticks;
 u16  fps;
 
+u32* color_map;
+
 // screen space
-SDL_Surface* screen = NULL;
+SDL_Surface* screen_surface = NULL;
 
 SDL_Window* window;
 SDL_Renderer* renderer;
@@ -39,13 +51,6 @@ SDL_Texture* screen_tex = NULL;
 
 u32 fb[LCD_HEIGHT][LCD_WIDTH];
 
-// color schemes
-u32 COLORS_Y[4] = {0xFFFFFFFF, 0x99999999, 0x44444444, 0x00000000};
-u32 COLORS_R[4] = {0xFFFFFFFF, 0xFFFF9999, 0xFF444499, 0x00000000};
-u32 COLORS_G[4] = {0xFFFFFFFF, 0xFF99FF99, 0xFF994444, 0x00000000};
-u32 COLORS_B[4] = {0xFFFFFFFF, 0xFF9999FF, 0xFF449944, 0x00000000};
-u32 COLORS_O[4] = {0xFFFFFFEE, 0xFFFFFF66, 0xFF444499, 0x00000000};
-u32* color_map;
 
 // gameboy color conversion
 u32 ColorTo32(u16 cgb)
@@ -57,45 +62,11 @@ u32 ColorTo32(u16 cgb)
     return 0xFF000000 | (r << 16) | (g << 8) | b;
     }
 
-// key mappings
-#define NUM_KEYS    8
-u32 KEYS[] =
-    {
-    SDLK_RIGHT, // control map one
-    SDLK_LEFT,
-    SDLK_UP,
-    SDLK_DOWN,
-    SDLK_z,
-    SDLK_x,
-    SDLK_RSHIFT,
-    SDLK_RETURN,
-    SDLK_d,     // control map two
-    SDLK_a,
-    SDLK_w,
-    SDLK_s,
-    SDLK_SPACE,
-    SDLK_BACKSPACE,
-    SDLK_LSHIFT,
-    SDLK_ESCAPE
-    };
-
-u32 BUTTONS[] =
-    {
-    SDL_CONTROLLER_BUTTON_DPAD_RIGHT,
-    SDL_CONTROLLER_BUTTON_DPAD_LEFT,
-    SDL_CONTROLLER_BUTTON_DPAD_UP,
-    SDL_CONTROLLER_BUTTON_DPAD_DOWN,
-    SDL_CONTROLLER_BUTTON_A,
-    SDL_CONTROLLER_BUTTON_B,
-    SDL_CONTROLLER_BUTTON_BACK,
-    SDL_CONTROLLER_BUTTON_START ,
-    };
-
 // strings
 char  window_caption[100];
 char  window_caption_fps[100];
-char  rom_file_buf[260];
-char* rom_file = rom_file_buf;
+char* rom_file = NULL;
+char* rom_name = NULL;
 char  save_file[260];
 
 // pointers
@@ -108,9 +79,6 @@ FILE* save_f = NULL;
 
 // input
 SDL_GameController* controller = NULL;
-
-// debug view
-u8 enable_inspector = 1;
 
 /*
     Set up SDL to play sound.
@@ -163,7 +131,7 @@ void SDLFillAudio(void* udata, u8* stream_u8, int len)
             stream[i++] = 0;
             }
         }
-    if (flag && !step_debugger) 
+    if (flag && !debugger.enabled) 
         {
         printf("audio buffer underflow\n");
         }
@@ -173,17 +141,161 @@ void SDLFillAudio(void* udata, u8* stream_u8, int len)
 #endif
     }
 
+void check_breakpoint()
+    {
+    if (debugger.enabled)
+        {
+        int i;
+        for (i = 0; i < debugger.breakpoints_count; i++)
+            {
+            if (PC == debugger.breakpoints[i])
+                {
+                debugger.paused = 1;
+                return;
+                }
+            }
+        }
+    }
+
+void add_breakpoint(u16 addr)
+    {
+    if (debugger.breakpoints_count >= debugger.breakpoints_size)
+        {
+        if (debugger.breakpoints)
+            {
+            debugger.breakpoints_size = 4;
+            debugger.breakpoints = malloc(sizeof(u16) * debugger.breakpoints_size);
+            }
+        else
+            {
+            debugger.breakpoints_size *= 2;
+            debugger.breakpoints = realloc(debugger.breakpoints, sizeof(u16) * debugger.breakpoints_size);
+            }
+        }
+
+    debugger.breakpoints[debugger.breakpoints_count++] = addr;
+    }
+
+// file name basename
+const char* base_name(const char* path)
+    {
+    const char* name = path;
+    char c;
+    while ((c = *path))
+        {
+        path++;
+        if (*path && (c == '/' || c == '\\'))
+            {
+            name = path;
+            }
+        }
+    return name;
+    }
+
+int parse_arguments(int argc, char **argv)
+    {
+    int argn = 1;
+    while (argn < argc)
+        {
+        if (strcmp(argv[argn], "--debugger") == 0)
+            {
+            debugger.enabled = 1;
+            }
+        else if (strcmp(argv[argn], "--pause") == 0)
+            {
+            debugger.enabled = 1;
+            debugger.paused = 1;
+            }
+        else if (strcmp(argv[argn], "--breakpoint") == 0)
+            {
+            u32 addr;
+
+            if (++argn >= argc) 
+                {
+                return 1;
+                }
+
+            addr = strtol(argv[argn], NULL, 0x10);
+
+            if (errno == EINVAL) 
+                {
+                return 1;
+                }
+
+            add_breakpoint(addr & 0xFFFF);
+            debugger.enabled = 1;
+            }
+        else
+            {
+            rom_file = argv[argn];
+            }
+        argn++;
+        }
+
+    return (rom_file == NULL || rom_file[0] == 0);
+    }
+
+void print_usage(char* exe_name)
+    {
+    printf("Usage: %s [--pause] [--breakpoint XXXX] <romfile>\n", base_name(exe_name));
+    }
+
+int load()
+    {
+    int     i;
+    u32     romread;
+
+    rom_f = fopen(rom_file, "rb");
+    if (rom_f == NULL)
+        {
+        return 1;
+        }
+    fseek(rom_f, 0, SEEK_END);
+    rom_size = ftell(rom_f);
+    rewind(rom_f);
+    rom = (u8*)malloc(rom_size);
+    for (i = 0; i < rom_size; i++)
+        {
+        rom[i] = 0xFF;
+        }
+    romread = fread(rom, sizeof(u8), rom_size, rom_f);
+    fclose(rom_f);
+    sprintf(save_file, "%s.sav", rom_file);
+    save_size = GetSaveSize(rom);
+    save = (u8*)malloc(save_size);
+    save_f = fopen(save_file, "rb");
+    if (save_f)
+        {
+        fseek(save_f,0,SEEK_SET);
+        fread(save, sizeof(u8), save_size, save_f);
+        fclose(save_f);
+        }
+    return 0;
+    }
+
 
 int main(int argc, char **argv)
     {
-    int     i, x, y;
+    int     x, y;
     u8      j;
-    u32     romread;
     u32     old_ticks;
     u32     new_ticks;
     int     delay;
     u32*    s;
     int     quit_seq;
+
+
+    if (parse_arguments(argc, argv))
+        {
+        print_usage(argv[0]);
+        exit(0);
+        }
+
+    if (load())
+        {
+        printf("Failed to load ROM: %s\n", rom_file);
+        exit(1);
+        }
 
     // Init SDL
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
@@ -196,9 +308,9 @@ int main(int argc, char **argv)
     SDL_RenderClear(renderer);
     SDL_RenderPresent(renderer);
     screen_tex = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, LCD_WIDTH, LCD_HEIGHT);
-
-    screen = SDL_CreateRGBSurface(0, LCD_WIDTH, LCD_HEIGHT, 32, 0xFF000000, 0x00FF0000, 0x0000FF00, 0x000000FF);
-
+    screen_surface = SDL_CreateRGBSurface(0, LCD_WIDTH, LCD_HEIGHT, 32, 0xFF000000, 0x00FF0000, 0x0000FF00, 0x000000FF);
+    sprintf(window_caption, "GameBoy - %s", base_name(rom_file));
+    SDL_SetWindowTitle(window, window_caption);
     printf("Num gamepads: %i\n", SDL_NumJoysticks());
     controller = SDL_GameControllerOpen(0);
     if (controller) 
@@ -211,56 +323,6 @@ int main(int argc, char **argv)
 
     // Start Audio
     SDLAudioStart();
-
-    // File selection
-    if (argc > 1)
-        rom_file = argv[1];
-    else
-        return 1;
-
-    // Need to specify ROM
-    if (!rom_file || !rom_file[0])
-        return 0;
-    else
-        {
-        char* s = rom_file;
-        for (i = 0; rom_file[i] != '\0'; i++)
-            {
-            if (rom_file[i] == '\\' || rom_file[i] == '/')
-                s = &rom_file[i+1];
-            }
-        sprintf(window_caption, "GameBoy - %s", s);
-        SDL_SetWindowTitle(window, window_caption);
-        }
-
-    // Load ROM file
-    rom_f = fopen(rom_file, "rb");
-    if (rom_f == NULL)
-        {
-        printf("Failed to load ROM: %s\n", rom_file);
-        goto bye;
-        }
-    fseek(rom_f, 0, SEEK_END);
-    rom_size = ftell(rom_f);
-    rewind(rom_f);
-    rom = (u8*)malloc(rom_size);
-    for (i = 0; i < rom_size; i++)
-        rom[i] = 0xFF;
-
-    romread = fread(rom, sizeof(u8), rom_size, rom_f);
-    fclose(rom_f);
-
-    // Load SAVE file (if it exists)
-    sprintf(save_file, "%s.sav", rom_file);
-    save_size = GetSaveSize(rom);
-    save = (u8*)malloc(save_size);
-    save_f = fopen(save_file, "rb");
-    if (save_f)
-        {
-        fseek(save_f,0,SEEK_SET);
-        fread(save, sizeof(u8), save_size, save_f);
-        fclose(save_f);
-        }
 
     // Start the emulator
     LoadROM(rom, rom_size, save, save_size);
@@ -276,11 +338,13 @@ int main(int argc, char **argv)
         while (SDL_PollEvent(&event))
             {
             if (event.type == SDL_QUIT)
+                {
                 running = 0;
+                }
             
             if (event.type == SDL_MOUSEBUTTONUP)
                 {
-                if (enable_inspector)
+                if (debugger.enabled)
                     {
                     InspectorClick(event.button.x, event.button.y);
                     }
@@ -290,13 +354,17 @@ int main(int argc, char **argv)
                 {
                 if (event.key.keysym.sym == SDLK_F5)
                     {
-                    enable_inspector = !enable_inspector;
+                    debugger.enabled = !debugger.enabled;
                     }
-                else if (event.key.keysym.sym == SDLK_p && enable_inspector)
+                else if (event.key.keysym.sym == SDLK_p && debugger.enabled)
                     {
-                    step_debugger = !step_debugger;
+                    debugger.paused = !debugger.paused;
+                    if (!debugger.paused)
+                        {
+                        StepCPU();
+                        }
                     }
-                else if (event.key.keysym.sym == SDLK_n && step_debugger)
+                else if (event.key.keysym.sym == SDLK_n && debugger.paused)
                     {
                     StepCPU();
                     }
@@ -385,11 +453,25 @@ int main(int argc, char **argv)
 
         old_ticks = SDL_GetTicks();
 
+        // check breakpoints
+
         // emulate frame
-        if (!step_debugger)
+        check_breakpoint();
+        if (debugger.enabled)
+            {
+            gb_frame = 0;
+            check_breakpoint();
+            while (!debugger.paused && !gb_frame)
+                {
+                StepCPU();
+                check_breakpoint();
+                }
+            }
+        else 
             {
             RunFrame();
             }
+
 
         if (gb_framecount == 0)
             {
@@ -405,21 +487,21 @@ int main(int argc, char **argv)
 
 
             // render
-            SDL_LockSurface(screen);
+            SDL_LockSurface(screen_surface);
 
             // copy framebuffer
-            s = (u32*)screen->pixels;
+            s = (u32*)screen_surface->pixels;
             for (y = 0; y < LCD_HEIGHT; y++)
                 {
                 for (x = 0; x < LCD_WIDTH; x++)
                     *(s + x) = fb[y][x];
-                s += screen->pitch/4;
+                s += screen_surface->pitch/4;
                 }
 
             // flip screen
-            SDL_UnlockSurface(screen);
+            SDL_UnlockSurface(screen_surface);
 
-            SDL_UpdateTexture(screen_tex, NULL, screen->pixels, screen->pitch);
+            SDL_UpdateTexture(screen_tex, NULL, screen_surface->pixels, screen_surface->pitch);
 
             SDL_Rect screen_tex_rect;
             screen_tex_rect.x = 0;
@@ -428,7 +510,7 @@ int main(int argc, char **argv)
             screen_tex_rect.h = LCD_HEIGHT;
 
             SDL_Rect renderer_rect;
-            if (enable_inspector)
+            if (debugger.enabled)
                 {
                 renderer_rect.x = 20;
                 renderer_rect.y = LCD_HEIGHT;
@@ -445,7 +527,7 @@ int main(int argc, char **argv)
 
             SDL_RenderClear(renderer);
 
-            if (enable_inspector)
+            if (debugger.enabled)
                 {   
                 InspectorDraw(renderer);
                 }
@@ -487,10 +569,10 @@ int main(int argc, char **argv)
             }
         }
 
-    SDL_FreeSurface(screen);
+    SDL_FreeSurface(screen_surface);
 
-bye:
     // Clean up
+    free(debugger.breakpoints);
     free(rom);
     free(save);
     SDL_Quit();

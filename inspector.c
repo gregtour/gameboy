@@ -54,7 +54,8 @@ void InspectorDraw(SDL_Renderer* renderer)
 
 	// CPU registers	
 	PRINTR(R_A, 10, 30); 	PRINTR(R_B, 130, 30);	PRINTR(R_D, 250, 30);	PRINTR(R_H, 370, 30);	PRINTR4(PC, 490, 30);
-	/*				 */ 	PRINTR(R_C, 130, 50);	PRINTR(R_E, 250, 50);	PRINTR(R_L, 370, 50);	PRINTR4(SP, 490, 50);
+	/*				 */ 	PRINTR(R_C, 130, 50);	PRINTR(R_E, 250, 50);	PRINTR(R_L, 370, 50);	PRINT4("_PC", prev_PC, 490, 50);
+																									PRINTR4(SP, 490, 70);
 
 	//PRINT("WRAM BANK", wram_bank, 10, 70);
 	//PRINT("VRAM BANK", vram_bank, 10, 90);

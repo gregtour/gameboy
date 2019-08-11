@@ -5,8 +5,8 @@
 
 #define SAVE_AUDIO_DATA_RAW
 
-#define SQUARE_WAVE
-//#define TRIANGLE_WAVE
+//#define SQUARE_WAVE
+#define TRIANGLE_WAVE
 
 // Platform sound configuration
 #define SAMPLING_RATE		48000

@@ -629,7 +629,7 @@ void AudioUpdate()
         256 - CH3.sound_len,
         audio_cycle);
 
-    if (CH3.channel.enable && CH3.enable)
+    if (CH3.channel.enable && CH3.enable && 0)
         {
         GENERATE_CH3(CH3.channel.freq, CH3.out_level);
         }
@@ -643,7 +643,7 @@ void AudioUpdate()
         audio_cycle
         );
 
-    if (CH4.channel.enable && 1)
+    if (CH4.channel.enable && 0)
         {
         ENVELOPE_UPDATE(
             &CH4.envelope,
