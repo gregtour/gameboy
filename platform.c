@@ -22,7 +22,7 @@
 
 // emulator data
 int running = 1;
-int step_debugger = 0;
+int step_debugger = 1;
 SDL_Event event;
 u8   frameskip = 0;
 u8   frames;
@@ -430,7 +430,7 @@ int main(int argc, char **argv)
             SDL_Rect renderer_rect;
             if (enable_inspector)
                 {
-                renderer_rect.x = 10;
+                renderer_rect.x = 20;
                 renderer_rect.y = LCD_HEIGHT;
                 renderer_rect.w = LCD_WIDTH * 2;// * SCALE_FACTOR;
                 renderer_rect.h = LCD_HEIGHT * 2;// * SCALE_FACTOR;

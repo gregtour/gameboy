@@ -227,6 +227,38 @@ extern u16 OCPD[4*8];
 #define PAL_INDEX           0x3F
 #define PAL_CONTROL_BITS    (PAL_AUTO_INCREMENT | PAL_INDEX)
 
+// CPU SETTINGS
+extern u8 gb_bios_enable;
+extern u8 opt_use_gb_bios;
+extern u8 gb_halt;
+extern u8 gb_ime;
+extern u8 gb_keys;
+extern u8 gb_mbc;
+extern u8 gb_cram;
+extern u8 gb_frame;
+extern u8 gb_rtc[5];
+extern u8 lcd_mode;
+
+// GB SETTINGS
+extern u8 cgb_double;
+extern u16 rom_bank;
+extern u16 rom_banks;
+extern u8  wram_bank;
+extern u8  vram_bank;
+extern u8  cram_bank;
+extern u8  cram_banks;
+extern u8  cram_enable;
+extern u8  cram_mode;
+
+// TIMERS
+extern u32 cpu_count;
+extern u32 lcd_count;
+extern u32 audio_count;
+extern u32 div_count;
+extern u32 tima_count;
+extern u8  tac_enable;
+extern u8  tac_rate;
+
 // CPU REGISTERS
 extern u8 R_A;
 extern u8 R_B; extern u8 R_C;
@@ -234,6 +266,20 @@ extern u8 R_D; extern u8 R_E;
 extern u8 R_H; extern u8 R_L;
 extern u16 SP;
 extern u16 PC;
+
+// REGISTERS
+extern u8 R_P1;    extern u8 R_SB;    extern u8 R_SC;    extern u8 R_DIV;
+extern u8 R_TIMA;  extern u8 R_TMA;   extern u8 R_TAC;   extern u8 R_IF;
+extern u8 R_LCDC;  extern u8 R_STAT;
+extern u8 R_SCY;   extern u8 R_SCX;   extern u8 R_LY;    extern u8 R_LYC;
+extern u8 R_DMA;   extern u8 R_BGP;   extern u8 R_OBP0;  extern u8 R_OBP1;
+extern u8 R_WY;    extern u8 R_WX;    extern u8 R_IE;
+
+// CGB REGISTERS
+extern u8 R_HDMA;  extern u8 R_BCPS;  extern u8 R_OCPS;  extern u8 R_KEY1;
+extern u16 R_HDMAS;
+extern u16 R_HDMAD;
+
 
 // MEMORY
 u8 READ(u16 addr);
