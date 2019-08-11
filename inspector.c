@@ -71,6 +71,7 @@ void InspectorDraw(SDL_Renderer* renderer)
 	PRINTR(wram_bank, 10, 470);
 	PRINTR(vram_bank, 10, 490);
 	PRINTR8(cpu_count, 10, 510);
+	PRINTI("MBC: ", ROM[ROM_MBC_INFO], 10, 530);
 
 	// instruction memory
 	const int inst_x = 372 - 12; //370;

@@ -250,6 +250,8 @@ extern u8  cram_banks;
 extern u8  cram_enable;
 extern u8  cram_mode;
 
+extern u8* ROM;
+
 // TIMERS
 extern u32 cpu_count;
 extern u32 lcd_count;

@@ -284,7 +284,7 @@ void WRITE(u16 addr, u8 val)
             if (gb_mbc == 5)
                 {
                 rom_bank = (rom_bank & 0x100) | val;
-                rom_bank = rom_bank % rom_banks;
+                rom_bank = rom_bank % (rom_banks ? rom_banks : 1);
                 return;
                 }
         case 0x3:
@@ -309,7 +309,7 @@ void WRITE(u16 addr, u8 val)
                 }
             else if (gb_mbc == 5)
                 rom_bank = (val & 0x01) << 8 | (rom_bank & 0xFF);
-            rom_bank = rom_bank % rom_banks;
+            rom_bank = rom_bank % (rom_banks ? rom_banks : 1);
             return;
             
         case 0x4:
@@ -318,7 +318,7 @@ void WRITE(u16 addr, u8 val)
                 {
                 cram_bank = (val & 3);
                 rom_bank = ((val & 3) << 5) | (rom_bank & 0x1F);
-                rom_bank = rom_bank % rom_banks;
+                rom_bank = rom_bank % (rom_banks ? rom_banks : 1);
                 }
             else if (gb_mbc == 3)
                 cram_bank = val;
