@@ -40,11 +40,14 @@ extern u8 gb_framecount;
 extern u8 gb_frameskip;
 extern u8 cgb_enable;
 
+#define DMG_BIOS_SIZE   0x0100
+#define CGB_BIOS_PART   0x0200
+#define CGB_BIOS_SIZE 	0x0900
+
 // bios
 #define DMG_BIOS_ENABLE    // optional logo: requires dmg.c
 #ifdef DMG_BIOS_ENABLE
 	extern u8  DMG_BIOS[0x100];
-	extern u8  opt_use_gb_bios;
 #endif
 
 // internal functions
@@ -229,6 +232,7 @@ extern u16 OCPD[4*8];
 
 // CPU SETTINGS
 extern u8 gb_bios_enable;
+extern u8 cgb_bios_enable;
 extern u8 opt_use_gb_bios;
 extern u8 gb_halt;
 extern u8 gb_ime;
@@ -251,6 +255,8 @@ extern u8  cram_enable;
 extern u8  cram_mode;
 
 extern u8* ROM;
+extern u8* BIOS;
+extern u32 BIOS_SIZE;
 
 // TIMERS
 extern u32 cpu_count;

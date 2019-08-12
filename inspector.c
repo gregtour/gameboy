@@ -48,21 +48,24 @@ void InspectorDraw(SDL_Renderer* renderer)
 	FontPrint(renderer, cgb_enable ? "CGB" : "DMG", 10, 10);
 	FontPrint(renderer, cgb_double ? "DOUBLE" : "SINGLE", 70, 10);
 
+#if 0
 	PRINTR(gb_halt, 250, 10);
 	PRINTR(gb_ime, 430, 10);
-
+#endif
 
 	// CPU registers	
-	PRINTR(R_A, 10, 30); 	PRINTR(R_B, 130, 30);	PRINTR(R_D, 250, 30);	PRINTR(R_H, 370, 30);	PRINTR4(PC, 490, 30);
-	/*				 */ 	PRINTR(R_C, 130, 50);	PRINTR(R_E, 250, 50);	PRINTR(R_L, 370, 50);	PRINT4("_PC", prev_PC, 490, 50);
-																									PRINTR4(SP, 490, 70);
+	PRINTR(R_A, 10, 30); 	PRINTR(R_B, 130, 30);	PRINTR(R_D, 250, 30);	PRINTR(R_H, 370, 30);
+	/*				 */ 	PRINTR(R_C, 130, 50);	PRINTR(R_E, 250, 50);	PRINTR(R_L, 370, 50);
+
 
 	//PRINT("WRAM BANK", wram_bank, 10, 70);
 	//PRINT("VRAM BANK", vram_bank, 10, 90);
+#if 0
 	PRINTR(R_IF, 10, 70);	PRINTR(R_IE, 130, 70);
-
 	PRINTR(R_P1, 10, 90);	PRINTR(R_DMA, 130, 90);
+#endif
 
+#if 0
 	PRINTR(R_HDMA, 10, 110);
 	PRINTR4(R_HDMAS, 150, 110);
 	PRINTR4(R_HDMAD, 330, 110);
@@ -71,7 +74,13 @@ void InspectorDraw(SDL_Renderer* renderer)
 	PRINTR(wram_bank, 10, 470);
 	PRINTR(vram_bank, 10, 490);
 	PRINTR8(cpu_count, 10, 510);
-	PRINTI("MBC: ", ROM[ROM_MBC_INFO], 10, 530);
+	PRINTI("MBC INFO", ROM[ROM_MBC_INFO], 10, 530);	PRINTI("MBC BANKS", ROM[ROM_BANK_COUNT], 200, 530);
+	PRINTI("MBC RAM", ROM[ROM_RAM_SIZE], 10, 550);	PRINTI("ROM BANKS", rom_banks, 200, 550);
+#endif
+
+	PRINTR(vram_bank, 10, 490);
+	PRINTI("TILE SELECT", (R_LCDC & LCDC_TILE_SELECT), 10, 510);
+
 
 	// instruction memory
 	const int inst_x = 372 - 12; //370;

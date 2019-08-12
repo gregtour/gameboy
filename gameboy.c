@@ -8,10 +8,12 @@
 #include "gameboy.h"
 #include "sound.h"
 
-#define printf(...)     ;
+//#define printf(...)     ;
 
 // CART /////////////////////////////
 u8* ROM;
+u8* BIOS = NULL;
+u32 BIOS_SIZE;
 u8* CRAM;
 u32 ROM_SIZE;
 u32 CRAM_SIZE;
@@ -53,7 +55,6 @@ u8  NUM_RAM_BANKS[] = {0, 1, 1, 4, 16};
 
 // GB ///////////////////////////////
 u8 gb_bios_enable = 1;
-u8 opt_use_gb_bios = 1;
 u8 gb_halt = 0;
 u8 gb_ime = 1;
 u8 gb_keys = 0;
@@ -64,7 +65,7 @@ u8 gb_rtc[5];
 u8 lcd_mode = 0;
 
 // CGB
-u8 cgb_enable = 0;
+u8 cgb_enable = 1;
 u8 cgb_double = 0;
 
 // CPU
@@ -125,12 +126,14 @@ u8 READ(u16 addr)
     switch ((addr >> 12) & 0xF)
         {
         case 0x0:
-#ifdef DMG_BIOS_ENABLE
-            if (gb_bios_enable && addr < 0x100)
+            if (addr < DMG_BIOS_SIZE
+                || (addr >= CGB_BIOS_PART && addr < CGB_BIOS_SIZE && cgb_enable))
                 {
-                return DMG_BIOS[addr];
+                if (gb_bios_enable && addr < BIOS_SIZE)
+                    {
+                    return BIOS[addr];
+                    }
                 }
-#endif
         case 0x1:
         case 0x2:
         case 0x3:
@@ -428,6 +431,7 @@ void WRITE(u16 addr, u8 val)
                 // DMA Register
                 case 0x46: 
                     {
+                    printf("DMA\n");
                     u8 offset;
                     R_DMA = (val % 0xF1);
                     for (offset = 0; offset < OAM_SIZE; offset++)
@@ -665,7 +669,6 @@ void StepCPU()
     prev_PC = PC;
     OP = (gb_halt ? 0x00 : READ(PC++));
     inst_cycles = OP_CYCLES[OP];
-    printf("%i;", OP);
     switch (OP)
         {
         case 0x00: // NOP
@@ -755,7 +758,6 @@ void StepCPU()
                 // check for CGB speed change
                 if (R_KEY1 & 0x01)
                     {
-                    printf("DOUBLE SPEED\n");
                     cgb_double = !cgb_double;
                     R_KEY1 = 0x00;
                     gb_halt = 0;
@@ -1223,7 +1225,6 @@ void StepCPU()
             R_A = R_L;
             break;
         case 0x7E: // LD A, (HL)
-            printf("%i;;", R_HL);
             R_A = READ(R_HL);
             break;
         case 0x7F: // LD A, A
@@ -2358,8 +2359,10 @@ void LoadROM(u8* rom, u32 size, u8* save, u32 save_size)
     gb_cram     = CART_RAM[ROM[ROM_MBC_INFO]];
     rom_banks   = NUM_ROM_BANKS[ROM[ROM_BANK_COUNT]];
     cram_banks  = NUM_RAM_BANKS[ROM[ROM_RAM_SIZE]];
-    cgb_enable  = (ROM[ROM_CGB_SUPPORT] == CGB_EXCLUSIVE ||
-                    ROM[ROM_CGB_SUPPORT] == CGB_OPTIONAL);
+    // cgb_enable  = (ROM[ROM_CGB_SUPPORT] == CGB_EXCLUSIVE ||
+    //                ROM[ROM_CGB_SUPPORT] == CGB_OPTIONAL) && cgb_enable;
+
+    if (rom_banks == 0) rom_banks = 0xFF;
 
     PowerUp();
     }
@@ -2376,7 +2379,7 @@ void PowerUp()
     // GB
     gb_halt = 0;
     gb_ime = 1;
-    gb_bios_enable = !cgb_enable;
+    gb_bios_enable = (BIOS_SIZE == (cgb_enable ? CGB_BIOS_SIZE : DMG_BIOS_SIZE));
     lcd_mode = 0;
 
     // MBC
@@ -2401,17 +2404,14 @@ void PowerUp()
     R_L = 0x4D;
     SP  = 0xFFFE;
 
-#ifdef DMG_BIOS_ENABLE
-    if (gb_bios_enable && opt_use_gb_bios) 
-    {
-        PC  = 0x0000;
-    } else {
-#endif
-        PC  = 0x0100;
-        gb_bios_enable = 0;
-#ifdef DMG_BIOS_ENABLE
-    }
-#endif
+    if (gb_bios_enable)
+        {
+        PC = 0x0000;
+        }
+    else
+        {
+        PC = 0x0100;
+        }
     
     // timer
     cpu_count   = 0x0000;

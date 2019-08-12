@@ -68,6 +68,8 @@ char  window_caption_fps[100];
 char* rom_file = NULL;
 char* rom_name = NULL;
 char  save_file[260];
+char* bios_path = NULL;
+u8    force_cgb = 0;
 
 // pointers
 u8*   rom = NULL;
@@ -197,7 +199,15 @@ int parse_arguments(int argc, char **argv)
     int argn = 1;
     while (argn < argc)
         {
-        if (strcmp(argv[argn], "--debugger") == 0)
+        if (strcmp(argv[argn], "--dmg") == 0)
+            {
+            cgb_enable = 0;
+            }
+        else if (strcmp(argv[argn], "--cgb") == 0)
+            {
+            force_cgb = 1;
+            }
+        else if (strcmp(argv[argn], "--debugger") == 0)
             {
             debugger.enabled = 1;
             }
@@ -224,6 +234,15 @@ int parse_arguments(int argc, char **argv)
 
             add_breakpoint(addr & 0xFFFF);
             debugger.enabled = 1;
+            }
+        else if (strcmp(argv[argn], "--bios") == 0)
+            {
+            if (++argn >= argc)
+                {
+                return 1;
+                }
+
+            bios_path = argv[argn];
             }
         else
             {
@@ -270,6 +289,32 @@ int load()
         fread(save, sizeof(u8), save_size, save_f);
         fclose(save_f);
         }
+
+    if (bios_path)
+        {
+        FILE*   bios_f;
+        bios_f = fopen(bios_path, "rb");
+        if (bios_f)
+            {
+            fseek(bios_f, 0, SEEK_END);
+            BIOS_SIZE = ftell(bios_f);
+            BIOS = (u8*)malloc(BIOS_SIZE);
+            for (i = 0; i < BIOS_SIZE; i++)
+                {
+                BIOS[i] = 0x00;
+                }
+            rewind(bios_f);
+            fread(BIOS, sizeof(u8), BIOS_SIZE, bios_f);
+            fclose(bios_f);
+            }
+        }
+#ifdef DMG_BIOS_ENABLE
+    else
+        {
+        BIOS = &DMG_BIOS[0];
+        BIOS_SIZE = sizeof(DMG_BIOS);
+        }
+#endif
     return 0;
     }
 
@@ -326,6 +371,10 @@ int main(int argc, char **argv)
 
     // Start the emulator
     LoadROM(rom, rom_size, save, save_size);
+    if (force_cgb)
+        {
+        cgb_enable = 1;
+        }
 
     color_map = COLORS_Y;
 
