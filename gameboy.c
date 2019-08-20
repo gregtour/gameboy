@@ -2091,11 +2091,11 @@ void StepCPU()
     cpu_count += inst_cycles;
     
     // AUDIO timing
-    audio_count += inst_cycles;
-    if (audio_count > AUDIO_CYCLES)
+    audio_count += (cgb_double ? 1 : 2) * inst_cycles;
+    if (audio_count > DOUBLE_AUDIO_CYCLES)
         {
         AudioUpdate();
-        audio_count -= AUDIO_CYCLES;
+        audio_count -= DOUBLE_AUDIO_CYCLES;
         }
 
     // LCD timing
@@ -2379,7 +2379,7 @@ void PowerUp()
     // GB
     gb_halt = 0;
     gb_ime = 1;
-    gb_bios_enable = (BIOS_SIZE == (cgb_enable ? CGB_BIOS_SIZE : DMG_BIOS_SIZE));
+    gb_bios_enable = gb_bios_enable && (BIOS_SIZE == (cgb_enable ? CGB_BIOS_SIZE : DMG_BIOS_SIZE));
     lcd_mode = 0;
 
     // MBC

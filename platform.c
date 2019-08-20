@@ -244,6 +244,10 @@ int parse_arguments(int argc, char **argv)
 
             bios_path = argv[argn];
             }
+        else if (strcmp(argv[argn], "--no-bios") == 0)
+            {
+            gb_bios_enable = 0;
+            }
         else
             {
             rom_file = argv[argn];
@@ -416,6 +420,10 @@ int main(int argc, char **argv)
                 else if (event.key.keysym.sym == SDLK_n && debugger.paused)
                     {
                     StepCPU();
+                    }
+                else if (event.key.keysym.sym == SDLK_f && debugger.paused)
+                    {
+                    RunFrame();
                     }
                 else if (event.key.keysym.sym == SDLK_0)
                     {
