@@ -5,8 +5,8 @@
 
 #define SAVE_AUDIO_DATA_RAW
 
-//#define SQUARE_WAVE
-#define TRIANGLE_WAVE
+#define SQUARE_WAVE
+//#define TRIANGLE_WAVE
 
 // Platform sound configuration
 #define SAMPLING_RATE		48000
@@ -22,6 +22,7 @@ extern FILE* raw;
 #define AUDIO_SAMPLING_RATE	0x20000
 #define AUDIO_BUFFER_SIZE	(8*SAMPLING_SIZE)
 #define AUDIO_CYCLES		15625
+#define DOUBLE_AUDIO_CYCLES (2 * AUDIO_CYCLES)   
 #define AUDIO_FILL			(SAMPLING_RATE / (CPU_CLOCKSPEED / AUDIO_CYCLES))
 
 // Audio buffers
@@ -130,7 +131,7 @@ typedef struct {
 #define NR50_L_VOL_OFFS     (4)
 #define NR50_R_ENABLE_BIT   (0x08)
 #define NR50_R_ENABLE_OFFS  (3)
-#define NR50_R_VOL_BIT      (0x07)
+#define NR50_R_VOL_BITS     (0x07)
 #define NR50_R_VOL_OFFS     (0)
 
 // NR51 L/R channel mask
@@ -139,6 +140,11 @@ typedef struct {
 #define NR51_L_MASK_OFFS    (4)
 #define NR51_R_MASK_BITS    (0x0F)
 #define NR51_R_MASK_OFFS    (0)
+
+#define NR51_CH1            (0x01)
+#define NR51_CH2            (0x02)
+#define NR51_CH3            (0x04)
+#define NR51_CH4            (0x08)
 
 // NR52 audio power & status
 
@@ -175,7 +181,7 @@ typedef struct {
     u8          sound_len;  /* NR31 */
     u8          out_level;  /* NR32 */
     CHANNEL     channel;    /* NR33, NR34 */
-    u8          pos_counter;
+    u32         pos_counter;
 } CH3_t;
 
 // Audio Channel 4 - Noise
@@ -192,9 +198,16 @@ typedef struct {
 
 typedef struct {
     u8 power;
-    u8 l_enable;    u8 l_vol;
-    u8 r_enable;    u8 r_vol;
+    u8 l_vin;       u8 l_vol;
+    u8 r_vin;       u8 r_vol;
     u8 l_mask;      u8 r_mask;
 } SO_t;
+
+
+extern CH1_t CH1;
+extern CH2_t CH2;
+extern CH3_t CH3;
+extern CH4_t CH4;
+extern SO_t  SO;
 
 #endif // _SOUND_H
