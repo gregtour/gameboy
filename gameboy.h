@@ -7,18 +7,18 @@
 
 #include <stdint.h>
 
-//#define CPU_CLOCKSPEED		0x400000
-#define CPU_CLOCKSPEED		4000000
+//#define CPU_CLOCKSPEED        0x400000
+#define CPU_CLOCKSPEED      4000000
 
 // types
-typedef uint64_t	u64;
-typedef uint32_t 	u32;
-typedef uint16_t 	u16;
-typedef uint8_t		u8;
-typedef int8_t 		s8;
-typedef int16_t 	s16;
-typedef int32_t 	s32;
-typedef int64_t 	s64;
+typedef uint64_t    u64;
+typedef uint32_t    u32;
+typedef uint16_t    u16;
+typedef uint8_t     u8;
+typedef int8_t      s8;
+typedef int16_t     s16;
+typedef int32_t     s32;
+typedef int64_t     s64;
 
 
 #ifndef NULL
@@ -42,12 +42,12 @@ extern u8 cgb_enable;
 
 #define DMG_BIOS_SIZE   0x0100
 #define CGB_BIOS_PART   0x0200
-#define CGB_BIOS_SIZE 	0x0900
+#define CGB_BIOS_SIZE   0x0900
 
 // bios
 #define DMG_BIOS_ENABLE    // optional logo: requires dmg.c
 #ifdef DMG_BIOS_ENABLE
-	extern u8  DMG_BIOS[0x100];
+    extern u8  DMG_BIOS[0x100];
 #endif
 
 // internal functions

@@ -9,9 +9,9 @@
 //#define TRIANGLE_WAVE
 
 // Platform sound configuration
-#define SAMPLING_RATE		48000
-#define SAMPLING_SIZE		1024
-#define AUDIO_CHANNELS 		2
+#define SAMPLING_RATE       48000
+#define SAMPLING_SIZE       1024
+#define AUDIO_CHANNELS      2
 
 // Platform sound debug
 #if defined(SAVE_AUDIO_DATA_RAW) || defined(SAVE_AUDIO_DATA_SDL)
@@ -19,11 +19,11 @@ extern FILE* raw;
 #endif
 
 // Emulated sound and buffer settings
-#define AUDIO_SAMPLING_RATE	0x20000
-#define AUDIO_BUFFER_SIZE	(8*SAMPLING_SIZE)
-#define AUDIO_CYCLES		15625
+#define AUDIO_SAMPLING_RATE 0x20000
+#define AUDIO_BUFFER_SIZE   (8*SAMPLING_SIZE)
+#define AUDIO_CYCLES        15625
 #define DOUBLE_AUDIO_CYCLES (2 * AUDIO_CYCLES)   
-#define AUDIO_FILL			(SAMPLING_RATE / (CPU_CLOCKSPEED / AUDIO_CYCLES))
+#define AUDIO_FILL          (SAMPLING_RATE / (CPU_CLOCKSPEED / AUDIO_CYCLES))
 
 // Audio buffers
 extern s16 AUDIO_BUFFER_L[AUDIO_BUFFER_SIZE];
@@ -43,12 +43,12 @@ void AudioUpdate();
 
 #define MAX_FREQ            2048
 
-#define SWEEP_TIME_BITS 	(0x70)
-#define SWEEP_TIME_OFFS		(4)
-#define SWEEP_DIR_BIT 		(0x08)
-#define SWEEP_DIR_OFFS 		(3)
-#define SWEEP_SHIFT_BITS	(0x07)
-#define SWEEP_SHIFT_OFFS 	(0)
+#define SWEEP_TIME_BITS     (0x70)
+#define SWEEP_TIME_OFFS     (4)
+#define SWEEP_DIR_BIT       (0x08)
+#define SWEEP_DIR_OFFS      (3)
+#define SWEEP_SHIFT_BITS    (0x07)
+#define SWEEP_SHIFT_OFFS    (0)
 
 typedef struct {
     u8  enabled;
@@ -62,10 +62,10 @@ typedef struct {
 
 // NR11, NR21, NR41 len register
 
-#define DUTY_BITS			(0xC0)
-#define DUTY_OFFS 			(6)
-#define SOUND_LEN_BITS 		(0x3F)
-#define SOUND_LEN_OFFS 		(0)
+#define DUTY_BITS           (0xC0)
+#define DUTY_OFFS           (6)
+#define SOUND_LEN_BITS      (0x3F)
+#define SOUND_LEN_OFFS      (0)
 
 typedef struct {
     u8 duty;
@@ -74,12 +74,12 @@ typedef struct {
 
 // NR12, NR22, NR42 envelope register
 
-#define INIT_VOLUME_BITS 	(0xF0)
-#define INIT_VOLUME_OFFS 	(4)
-#define ENV_DIR_BIT			(0x08)
-#define ENV_DIR_OFFS 		(3)
-#define ENV_SWEEP_BITS 		(0x07)
-#define ENV_SWEEP_OFFS 		(0)
+#define INIT_VOLUME_BITS    (0xF0)
+#define INIT_VOLUME_OFFS    (4)
+#define ENV_DIR_BIT         (0x08)
+#define ENV_DIR_OFFS        (3)
+#define ENV_SWEEP_BITS      (0x07)
+#define ENV_SWEEP_OFFS      (0)
 
 typedef struct {
     u8  disabled;
@@ -91,12 +91,12 @@ typedef struct {
 
 // NR13 & 14, NR23 & 24, NR33 & 34, NR44: init, counter, freq
 
-#define FREQ_LO_MASK 		(0x00FF)
-#define FREQ_HI_MASK 		(0xFF00)
-#define INIT_BIT 			(0x80)
-#define COUNTER_BIT 		(0x40)
-#define COUNTER_OFFS 		(6)
-#define FREQ_HI_BITS 		(0x07)
+#define FREQ_LO_MASK        (0x00FF)
+#define FREQ_HI_MASK        (0xFF00)
+#define INIT_BIT            (0x80)
+#define COUNTER_BIT         (0x40)
+#define COUNTER_OFFS        (6)
+#define FREQ_HI_BITS        (0x07)
 
 typedef struct {
     u8  enable;
@@ -108,20 +108,20 @@ typedef struct {
 
 // NR30, NR31
 
-#define NR30_SOUND_ON_BIT	(0x80)
-#define NR30_SOUND_ON_OFFS 	(7)
-#define NR31_SOUND_LEN_BITS	(0xFF)
-#define NR32_OUT_LEVEL_BITS	(0x60)
-#define NR32_OUT_LEVEL_OFFS	(5)
+#define NR30_SOUND_ON_BIT   (0x80)
+#define NR30_SOUND_ON_OFFS  (7)
+#define NR31_SOUND_LEN_BITS (0xFF)
+#define NR32_OUT_LEVEL_BITS (0x60)
+#define NR32_OUT_LEVEL_OFFS (5)
 
 // NR43
 
-#define NR43_SHIFT_CLOCK_BITS	(0xF0)
-#define NR43_SHIFT_CLOCK_OFFS 	(4)
-#define NR43_COUNTER_STEP_BITS 	(0x08)
-#define NR43_COUNTER_STEP_OFFS 	(3)
-#define NR43_DIV_RATIO_BITS 	(0x03)
-#define NR43_DIV_RATIO_OFFS 	(0)
+#define NR43_SHIFT_CLOCK_BITS   (0xF0)
+#define NR43_SHIFT_CLOCK_OFFS   (4)
+#define NR43_COUNTER_STEP_BITS  (0x08)
+#define NR43_COUNTER_STEP_OFFS  (3)
+#define NR43_DIV_RATIO_BITS     (0x03)
+#define NR43_DIV_RATIO_OFFS     (0)
 
 // NR50 L/R output volume
 

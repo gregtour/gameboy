@@ -8,7 +8,7 @@
 #include "gameboy.h"
 #include "sound.h"
 
-//#define printf(...)     ;
+#define printf(...)     ;
 
 // CART /////////////////////////////
 u8* ROM;
@@ -30,26 +30,26 @@ u8  cram_mode;
 
 // cart mbc / memory info
 u8 CART_MBC[] = 
-    {
+{
     0, 1, 1, 1,-1, 2, 2,-1, 0, 0,-1, 0, 0, 0,-1, 3,
     3, 3, 3, 3,-1,-1,-1,-1,-1, 5, 5, 5, 5, 5, 5, 0
-    };
+};
 
 u8 CART_RAM[] = 
-    {
+{
     0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0,
     1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0
-    };
+};
 
 u16 NUM_ROM_BANKS[] =
-    {
+{
     2, 4, 8,16,32,64,128, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0,72,80,96, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-    };
+};
 
 u8  NUM_RAM_BANKS[] = {0, 1, 1, 4, 16};
 
@@ -122,18 +122,18 @@ u16 R_HDMAD;
 
 // Read
 u8 READ(u16 addr)
-    {
+{
     switch ((addr >> 12) & 0xF)
-        {
+    {
         case 0x0:
             if (addr < DMG_BIOS_SIZE
                 || (addr >= CGB_BIOS_PART && addr < CGB_BIOS_SIZE && cgb_enable))
-                {
+            {
                 if (gb_bios_enable && addr < BIOS_SIZE)
-                    {
+                {
                     return BIOS[addr];
-                    }
                 }
+            }
         case 0x1:
         case 0x2:
         case 0x3:
@@ -156,14 +156,14 @@ u8 READ(u16 addr)
         case 0xA:
         case 0xB:
             if (gb_cram && cram_enable)
-                {
+            {
                 if (gb_mbc == 3 && cram_bank >= 0x08)
                     return gb_rtc[cram_bank - 0x08];
                 else if ((cram_mode || gb_mbc != 1) && cram_bank < cram_banks)
                     return CRAM[addr - CART_RAM_ADDR + cram_bank*CRAM_BANK_SIZE];
                 else
                     return CRAM[addr - CART_RAM_ADDR];
-                }
+            }
             return 0;
         
         case 0xC:
@@ -183,7 +183,7 @@ u8 READ(u16 addr)
             if (addr < IO_ADDR)
                 return 0; // unused
             switch (addr & 0xFF)        // 0xFF00 .. 0xFFFF
-                {
+            {
                 // I/O Registers
                 case 0x00:
                     return 0xC0 | R_P1;
@@ -262,19 +262,19 @@ u8 READ(u16 addr)
                 // High RAM
                 default:   
                     if (addr >= HRAM_ADDR) 
-                        {
+                    {
                         return HRAM[addr - HRAM_ADDR];
-                        }
-                }
-        }
-    return 0;
+                    }
+            }
     }
+    return 0;
+}
 
 // Write
 void WRITE(u16 addr, u8 val)
-    {
+{
     switch (addr >> 12)
-        {
+    {
         case 0x0:
         case 0x1:
             if (gb_mbc == 2 && addr & 0x10)
@@ -285,48 +285,51 @@ void WRITE(u16 addr, u8 val)
             
         case 0x2:
             if (gb_mbc == 5)
-                {
+            {
                 rom_bank = (rom_bank & 0x100) | val;
                 rom_bank = rom_bank % (rom_banks ? rom_banks : 1);
+                printf("ROM BANK %i\n", rom_bank);
                 return;
-                }
+            }
         case 0x3:
             if (gb_mbc == 1)
-                {
+            {
                 //rom_bank = val & 0x7;
                 rom_bank = (val & 0x1F) | (rom_bank & 0x60);
                 if ((rom_bank & 0x1F) == 0x00)
                     rom_bank++;
-                }
+            }
             else if (gb_mbc == 2 && addr & 0x10)
-                {
+            {
                 rom_bank = val & 0x0F;
                 if (!rom_bank) 
                     rom_bank++;
-                }
+            }
             else if (gb_mbc == 3)
-                {
+            {
                 rom_bank = val & 0x7F;
                 if (!rom_bank) 
                     rom_bank++;
-                }
+            }
             else if (gb_mbc == 5)
                 rom_bank = (val & 0x01) << 8 | (rom_bank & 0xFF);
             rom_bank = rom_bank % (rom_banks ? rom_banks : 1);
+            printf("ROM BANK %i\n", rom_bank);
             return;
             
         case 0x4:
         case 0x5:
             if (gb_mbc == 1)
-                {
+            {
                 cram_bank = (val & 3);
                 rom_bank = ((val & 3) << 5) | (rom_bank & 0x1F);
                 rom_bank = rom_bank % (rom_banks ? rom_banks : 1);
-                }
+            }
             else if (gb_mbc == 3)
                 cram_bank = val;
             else if (gb_mbc == 5)
                 cram_bank = (val & 0x0F);
+            printf("CRAM BANK %i\n", cram_bank);
             return;
             
         case 0x6:
@@ -343,7 +346,7 @@ void WRITE(u16 addr, u8 val)
         case 0xA:
         case 0xB:
             if (gb_cram && cram_enable)
-                {
+            {
                 if (gb_mbc == 3 && cram_bank >= 0x08)
                     gb_rtc[cram_bank - 0x08] = val;
                 //else if ((cram_mode || gb_mbc != 1) && cram_bank < cram_banks)
@@ -351,7 +354,7 @@ void WRITE(u16 addr, u8 val)
                     CRAM[addr - CART_RAM_ADDR + cram_bank*CRAM_BANK_SIZE] = val;
                 else
                     CRAM[addr - CART_RAM_ADDR] = val;
-                }
+            }
             return;
         
         case 0xC:
@@ -368,19 +371,19 @@ void WRITE(u16 addr, u8 val)
         
         case 0xF:
             if (addr < OAM_ADDR)
-                {
+            {
                 WRAM[addr - ECHO_ADDR + (wram_bank-1)*WRAM_BANK_SIZE] = val;
                 return;
-                }
+            }
             if (addr < UNUSED_ADDR)
-                {
+            {
                 OAM[addr - OAM_ADDR] = val;
                 return;
-                }
+            }
             if (addr < IO_ADDR)
                 return;    // unused
             switch (addr & 0xFF)        // 0xFF00 .. 0xFFFF
-                {
+            {
                 // I/O Registers
                 case 0x00:      // Controls
                     R_P1 = val & 0x30;
@@ -430,16 +433,16 @@ void WRITE(u16 addr, u8 val)
                     
                 // DMA Register
                 case 0x46: 
-                    {
+                {
                     printf("DMA\n");
                     u8 offset;
                     R_DMA = (val % 0xF1);
                     for (offset = 0; offset < OAM_SIZE; offset++)
-                        {
+                    {
                         OAM[offset] = READ((R_DMA << 8) + offset);
-                        }
-                    return;
                     }
+                    return;
+                }
                 // DMG Palette Registers
                 case 0x47:
                     R_BGP = val;
@@ -474,9 +477,9 @@ void WRITE(u16 addr, u8 val)
                 // CGB VRAM bank
                 case 0x4F:
                     if (cgb_enable)
-                        {
+                    {
                         vram_bank = val & 0x1;
-                        }
+                    }
                     return;
 
                 // turn off boot rom
@@ -506,27 +509,27 @@ void WRITE(u16 addr, u8 val)
                 case 0x55:
                     printf("HDMA\n");
                     if (val & HDMA_HBLANK)
-                        {
+                    {
                         // set length to copy
                         R_HDMA = val & HDMA_LENGTH;
-                        }
+                    }
                     else
-                        {
+                    {
                         if (R_HDMA & HDMA_OFF)
-                            {
+                        {
                             u16 i;
                             // blocking DMA
                             for (i = 0; i < (val + 1) * 0x10; i++)
                                 WRITE(R_HDMAD+i, READ(R_HDMAS+i));
                             inst_cycles += 8 * (cgb_double + 1) * (val + 1);
                             R_HDMA = 0xFF;
-                            }
+                        }
                         else
-                            {
+                        {
                             // disable hblank dma
                             R_HDMA |= HDMA_OFF;
-                            }
                         }
+                    }
                     return;
 
                 // CGB Palette Registers
@@ -546,11 +549,11 @@ void WRITE(u16 addr, u8 val)
                 // CGB WRAM bank
                 case 0x70:
                     if (cgb_enable)
-                        {
+                    {
                         wram_bank = val & 0x7;
                         if (wram_bank == 0x0)
                             wram_bank = 0x1;
-                        }
+                    }
                     return;
                     
                 // Interrupt Enable Register
@@ -559,13 +562,13 @@ void WRITE(u16 addr, u8 val)
                 // High RAM
                 default:
                     if (addr >= HRAM_ADDR)
-                        {
+                    {
                         HRAM[addr - HRAM_ADDR] = val;
-                        }
+                    }
                     return;
-                }
-        }
+            }
     }
+}
 
 
 // CPU //////////////////////////////
@@ -613,22 +616,22 @@ u16 NN; u32 NNNN;
 u8  D1, D2; // DAA
 
 void RunFrame()
-    {
+{
     gb_frame = 0;
     while (!gb_frame)
         StepCPU();
-    }
+}
 
 void StepCPU()
-    {
+{
     // handle interrupts
     if ((gb_ime || gb_halt) && (R_IF & R_IE & ANY_INTR))
-        {
+    {
         // disable halt
         gb_halt = 0;
         
         if (gb_ime)
-            {
+        {
             // disable interrupts
             gb_ime = 0;
 
@@ -638,39 +641,39 @@ void StepCPU()
             
             // Call interrupt handler
             if (R_IF & R_IE & VBLANK_INTR)
-                {
+            {
                 PC = VBLANK_INTR_ADDR;
                 R_IF ^= VBLANK_INTR;
-                }
+            }
             else if (R_IF & R_IE & LCDC_INTR)
-                {
+            {
                 PC = LCDC_INTR_ADDR;
                 R_IF ^= LCDC_INTR;
-                }
+            }
             else if (R_IF & R_IE & TIMER_INTR)
-                {
+            {
                 PC = TIMER_INTR_ADDR;
                 R_IF ^= TIMER_INTR;
-                }
+            }
             else if (R_IF & R_IE & SERIAL_INTR)
-                {
+            {
                 PC = SERIAL_INTR_ADDR;
                 R_IF ^= SERIAL_INTR;
-                }
+            }
             else if (R_IF & R_IE & CONTROL_INTR)
-                {
+            {
                 PC = CONTROL_INTR_ADDR;
                 R_IF ^= CONTROL_INTR;
-                }
             }
         }
+    }
     
     // Execute one instruction
     prev_PC = PC;
     OP = (gb_halt ? 0x00 : READ(PC++));
     inst_cycles = OP_CYCLES[OP];
     switch (OP)
-        {
+    {
         case 0x00: // NOP
             break;
         case 0x01: // LD BC, imm
@@ -754,15 +757,15 @@ void StepCPU()
         case 0x10: // STOP
             gb_halt = 1;
             if (cgb_enable)
-                {
+            {
                 // check for CGB speed change
                 if (R_KEY1 & 0x01)
-                    {
+                {
                     cgb_double = !cgb_double;
                     R_KEY1 = 0x00;
                     gb_halt = 0;
-                    }
                 }
+            }
             break;
         case 0x11: // LD DE, imm
             R_E = READ(PC++);
@@ -845,9 +848,9 @@ void StepCPU()
         case 0x20: // JP NZ, imm
             SN = (s8)READ(PC++);
             if (!F_Z)
-                {
+            {
                 PC += SN;
-                }
+            }
             break;
         case 0x21: // LD HL, imm
             R_L = READ(PC++);
@@ -883,31 +886,31 @@ void StepCPU()
             D1 = R_A >> 4;
             D2 = R_A & 0x0F;
             if (F_N)
-                {
+            {
                 if (F_H) D2 -= 6;
                 if (F_C) D1 -= 6;
                 if (D2>9) D2 -= 6;
                 if (D1 > 9)
-                    {
+                {
                     D1 -= 6;
                     F_C = 1;
-                    }
                 }
+            }
             else
-                {
+            {
                 if (F_H) D2 += 6;
                 if (F_C) D1 += 6;
                 if (D2 > 9)
-                    {
+                {
                     D2 -= 10;
                     D1++;
-                    }
+                }
                 if (D1 > 9)
-                    {
+                {
                     D1 -= 10;
                     F_C = 1;
-                    }
                 }
+            }
             R_A = ((D1 << 4) & 0xF0) | (D2 & 0x0F);
             F_Z = (R_A == 0);
             F_H = 0;
@@ -915,9 +918,9 @@ void StepCPU()
         case 0x28: // JP Z, imm
             SN = (s8)READ(PC++);
             if (F_Z)
-                {
+            {
                 PC += SN;
-                }
+            }
             break;
         case 0x29: // ADD HL, HL
             NNNN = R_HL + R_HL;
@@ -961,9 +964,9 @@ void StepCPU()
         case 0x30: // JP NC, imm
             SN = (s8)READ(PC++);
             if (!F_C)
-                {
+            {
                 PC += SN;
-                }
+            }
             break;
         case 0x31: // LD SP, imm
             SP = READ(PC++);
@@ -1003,9 +1006,9 @@ void StepCPU()
         case 0x38: // JP C, imm
             SN = (s8)READ(PC++);
             if (F_C)
-                {
+            {
                 PC += SN;
-                }
+            }
             break;
         case 0x39: // ADD HL, SP
             NNNN = R_HL + SP;
@@ -1723,11 +1726,11 @@ void StepCPU()
             break;
         case 0xC0: // RET NZ
             if (!F_Z)
-                {
+            {
                 NN = READ(SP++);
                 NN |= READ(SP++) << 8;
                 PC = NN;
-                }
+            }
             break;
         case 0xC1: // POP BC
             R_C = READ(SP++);
@@ -1737,9 +1740,9 @@ void StepCPU()
             NN = READ(PC++);
             NN |= READ(PC++) << 8;
             if (!F_Z)
-                {
+            {
                 PC = NN;
-                }
+            }
             break;
         case 0xC3: // JP imm
             NN = READ(PC++);
@@ -1750,11 +1753,11 @@ void StepCPU()
             NN = READ(PC++);
             NN |= READ(PC++) << 8;
             if (!F_Z)
-                {
+            {
                 WRITE(--SP, PC >> 8);
                 WRITE(--SP, PC & 0xFF);
                 PC = NN;
-                }
+            }
             break;
         case 0xC5: // PUSH BC
             WRITE(--SP, R_B);
@@ -1776,11 +1779,11 @@ void StepCPU()
             break;
         case 0xC8: // RET Z
             if (F_Z)
-                {
+            {
                 NN = READ(SP++);
                 NN |= READ(SP++) << 8;
                 PC = NN;
-                }
+            }
             break;
         case 0xC9: // RET
             NN = READ(SP++);
@@ -1791,9 +1794,9 @@ void StepCPU()
             NN = READ(PC++);
             NN |= READ(PC++) << 8;
             if (F_Z)
-                {
+            {
                 PC = NN;
-                }
+            }
             break;
         case 0xCB: // CB INST
             ExecuteCB();
@@ -1802,11 +1805,11 @@ void StepCPU()
             NN = READ(PC++);
             NN |= READ(PC++) << 8;
             if (F_Z)
-                {
+            {
                 WRITE(--SP, PC >> 8);
                 WRITE(--SP, PC & 0xFF);
                 PC = NN;
-                }
+            }
             break;
         case 0xCD: // CALL imm
             NN = READ(PC++);
@@ -1831,11 +1834,11 @@ void StepCPU()
             break;
         case 0xD0: // RET NC
             if (!F_C)
-                {
+            {
                 NN = READ(SP++);
                 NN |= READ(SP++) << 8;
                 PC = NN;
-                }
+            }
             break;
         case 0xD1: // POP DE
             R_E = READ(SP++);
@@ -1845,9 +1848,9 @@ void StepCPU()
             NN = READ(PC++);
             NN |= READ(PC++) << 8;
             if (!F_C)
-                {
+            {
                 PC = NN;
-                }
+            }
             break;
         case 0xD3: // illegal
             break;
@@ -1855,11 +1858,11 @@ void StepCPU()
             NN = READ(PC++);
             NN |= READ(PC++) << 8;
             if (!F_C)
-                {
+            {
                 WRITE(--SP, PC >> 8);
                 WRITE(--SP, PC & 0xFF);
                 PC = NN;
-                }
+            }
             break;
         case 0xD5: // PUSH DE
             WRITE(--SP, R_D);
@@ -1881,11 +1884,11 @@ void StepCPU()
             break;
         case 0xD8: // RET C
             if (F_C)
-                {
+            {
                 NN = READ(SP++);
                 NN |= READ(SP++) << 8;
                 PC = NN;
-                }
+            }
             break;
         case 0xD9: // RETI
             NN = READ(SP++);
@@ -1897,9 +1900,9 @@ void StepCPU()
             NN = READ(PC++);
             NN |= READ(PC++) << 8;
             if (F_C)
-                {
+            {
                 PC = NN;
-                }
+            }
             break;
         case 0xDB: // illegal
             break;
@@ -1907,11 +1910,11 @@ void StepCPU()
             NN = READ(PC++);
             NN |= READ(PC++) << 8;
             if (F_C)
-                {
+            {
                 WRITE(--SP, PC >> 8);
                 WRITE(--SP, PC & 0xFF);
                 PC = NN;
-                }
+            }
             break;
         case 0xDD: // illegal
             break;
@@ -1963,19 +1966,19 @@ void StepCPU()
             SN = (s8)READ(PC++);
             NN = SP + SN;
             if (SN >= 0)
-                {
+            {
                 F_Z = 0;
                 F_N = 0;
                 F_H = ((SP ^ SN ^ NN) & 0x1000) ? 1 : 0;
                 F_C = (SP > NN);
-                }
+            }
             else
-                {
+            {
                 F_Z = 0;
                 F_N = 0;
                 F_H = ((SP ^ SN ^ NN) & 0x1000) ? 1 : 0;
                 F_C = (SP < NN);
-                }
+            }
             SP = NN;
             break;
         case 0xE9: // JP (HL)
@@ -2042,19 +2045,19 @@ void StepCPU()
             SN = (s8)READ(PC++);
             NN = SP + SN;
             if (SN >= 0)
-                {
+            {
                 F_Z = 0;
                 F_N = 0;
                 F_H = ((SP ^ SN ^ NN) & 0x1000) ? 1 : 0;
                 F_C = (SP > NN);
-                }
+            }
             else
-                {
+            {
                 F_Z = 0;
                 F_N = 0;
                 F_H = ((SP ^ SN ^ NN) & 0x1000) ? 1 : 0;
                 F_C = (SP < NN);
-                }
+            }
             R_H = (NN & 0xFF00) >> 8;
             R_L = (NN & 0x00FF);
             break;
@@ -2085,7 +2088,7 @@ void StepCPU()
             WRITE(--SP, PC & 0xFF);
             PC = 0x0038;
             break;
-        }
+    }
     
     // CPU timing
     cpu_count += inst_cycles;
@@ -2093,25 +2096,25 @@ void StepCPU()
     // AUDIO timing
     audio_count += (cgb_double ? 1 : 2) * inst_cycles;
     if (audio_count > DOUBLE_AUDIO_CYCLES)
-        {
+    {
         AudioUpdate();
         audio_count -= DOUBLE_AUDIO_CYCLES;
-        }
+    }
 
     // LCD timing
     lcd_count += inst_cycles;
     // New scanline
     if (lcd_count > LCD_LINE_CYCLES * (cgb_double + 1))
-        {
+    {
         lcd_count -= LCD_LINE_CYCLES * (cgb_double + 1);
 
         // LYC update
         if (R_LY == R_LYC)
-            {
+        {
             R_STAT |= STAT_LYC_COINC;
             if (R_STAT & STAT_LYC_INTR)
                 R_IF |= LCDC_INTR;
-            }
+        }
         else
             R_STAT &= 0xFB;
 
@@ -2120,7 +2123,7 @@ void StepCPU()
         
         // VBLANK Start
         if (R_LY == LCD_HEIGHT)
-            {
+        {
             //OutputDebugString("---- VBLANK ----\n");
             lcd_mode = LCD_VBLANK;
             gb_frame = 1;
@@ -2128,10 +2131,10 @@ void StepCPU()
             R_IF |= VBLANK_INTR;
             if (R_STAT & STAT_MODE_1_INTR)
                 R_IF |= LCDC_INTR;
-            }
+        }
         // normal line
         else if (R_LY < LCD_HEIGHT)
-            {
+        {
             if (R_LY == 0)
                 LCDStart();
             lcd_mode = LCD_HBLANK;
@@ -2140,7 +2143,7 @@ void StepCPU()
 
             // check for HBLANK HDMA
             if (cgb_enable && (R_HDMA & HDMA_OFF) == 0x00)
-                {
+            {
                 u8 i;
                 // copy 0x10 bytes each hblank
                 for (i = 0; i < 0x10; i++)
@@ -2148,47 +2151,47 @@ void StepCPU()
                 R_HDMA--;
                 lcd_count += 8 * (cgb_double + 1);
                 inst_cycles += 8 * (cgb_double + 1);
-                }
             }
         }
+    }
     // oam access
     else if (lcd_mode == LCD_HBLANK && lcd_count >= LCD_MODE_2_CYCLES * (cgb_double + 1))
-        {
+    {
         lcd_mode = LCD_SEARCH_OAM;
         if (R_STAT & STAT_MODE_2_INTR)
             R_IF |= LCDC_INTR;
-        }        
+    }        
     // update LCD
     else if (lcd_mode == LCD_SEARCH_OAM && lcd_count >= LCD_MODE_3_CYCLES * (cgb_double + 1))
-        {
+    {
         lcd_mode = LCD_TRANSFER;
         LCDDrawLine();
-        }
+    }
         
     // DIV register timing
     div_count += inst_cycles;
     if (div_count > DIV_CYCLES)
-        {
+    {
         R_DIV++;
         div_count -= DIV_CYCLES;
-        }
+    }
     
     // TIMA register timing
     if (tac_enable)
-        {
+    {
         tima_count += inst_cycles;
         if (tima_count > TAC_CYCLES[tac_rate])
-            {
+        {
             tima_count -= TAC_CYCLES[tac_rate];
             R_TIMA++;
             if (R_TIMA == 0)
-                {
+            {
                 R_IF |= TIMER_INTR;
                 R_TIMA = R_TMA;
-                }
             }
         }
     }
+}
 
 // CB helper variables
 u8 CBOP;
@@ -2200,7 +2203,7 @@ u8 writeback;
 
 // bit-level operations
 void ExecuteCB()
-    {
+{
     CBOP = READ(PC++);
     R  = (CBOP & 0x7);
     B  = (CBOP >> 3) & 0x7;
@@ -2208,7 +2211,7 @@ void ExecuteCB()
     
     // retrieve byte to manipulate
     switch (R)
-        {
+    {
         case 0: val = R_B; break;
         case 1: val = R_C; break;
         case 2: val = R_D; break;
@@ -2217,20 +2220,20 @@ void ExecuteCB()
         case 5: val = R_L; break;
         case 6: val = READ(R_HL); break;
         case 7: val = R_A; break;
-        }
+    }
     
     // bit-fiddling OPs
     writeback = 1;
     switch (CBOP >> 6)
-        {
+    {
         case 0x0:
             CBOP = (CBOP >> 4) & 0x3;
             switch (CBOP)
-                {
+            {
                 case 0x0: // RdC R
                 case 0x1: // Rd R
                     if (D) // RRC R / RR R
-                        {
+                    {
                         N = val;
                         val = (val >> 1);
                         val |= CBOP ? (F_C << 7) : (N << 7);
@@ -2238,9 +2241,9 @@ void ExecuteCB()
                         F_N = 0;
                         F_H = 0;
                         F_C = (N & 0x01);
-                        }
+                    }
                     else    // RLC R / RL R
-                        {
+                    {
                         N = val;
                         val = (val << 1);
                         val |= CBOP ? F_C : (N >> 7);
@@ -2248,37 +2251,37 @@ void ExecuteCB()
                         F_N = 0;
                         F_H = 0;
                         F_C = (N >> 7);
-                        }
+                    }
                     break;
                 case 0x2:
                     if (D) // SRA R
-                        {
+                    {
                         F_C = val & 0x01;
                         val = (val >> 1) | (val & 0x80);
                         F_Z = (val == 0x00);
                         F_N = 0;
                         F_H = 0;
-                        }
+                    }
                     else    // SLA R
-                        {
+                    {
                         F_C = (val >> 7);
                         val = val << 1;
                         F_Z = (val == 0x00);
                         F_N = 0;
                         F_H = 0;
-                        }
+                    }
                     break;
                 case 0x3:
                     if (D) // SRL R
-                        {
+                    {
                         F_C = val & 0x01;
                         val = val >> 1;
                         F_Z = (val == 0x00);
                         F_N = 0;
                         F_H = 0;
-                        }
+                    }
                     else    // SWAP R
-                        {
+                    {
                         N = (val >> 4) & 0x0F;
                         N |= (val << 4) & 0xF0;
                         val = N;
@@ -2286,9 +2289,9 @@ void ExecuteCB()
                         F_N = 0;
                         F_H = 0;
                         F_C = 0;
-                        }
+                    }
                     break;
-                }
+            }
             break;
         case 0x1: // BIT B, R
             F_Z = !((val >> B) & 0x1);
@@ -2302,13 +2305,13 @@ void ExecuteCB()
         case 0x3: // SET B, R
             val |= (0x1 << B);
             break;
-        }
+    }
         
     // save result
     if (writeback)
-        {
+    {
         switch (R) 
-            {
+        {
             case 0: R_B = val; break;
             case 1: R_C = val; break;
             case 2: R_D = val; break;
@@ -2317,40 +2320,40 @@ void ExecuteCB()
             case 5: R_L = val; break;
             case 6: WRITE(R_HL, val); break;
             case 7: R_A = val; break;
-            }
         }
     }
+}
 
 // CONTROLS /////////////////////////
 void UpdateP1()
-    {
+{
     R_P1 |= 0x0F;
     if (!(R_P1 & INPUT_P14))
         R_P1 &= 0xF0 | ((gb_keys & 0x0F) ^ 0x0F);
     if (!(R_P1 & INPUT_P15))
         R_P1 &= 0xF0 | (((gb_keys >> 4) & 0x0F) ^ 0x0F);
-    }
+}
 
 void KeyPress(u8 key)
-    {
+{
     gb_keys |= 0x01 << key;
     UpdateP1();
     //R_IF |= CONTROL_INTR;
-    }
+}
 
 void KeyRelease(u8 key)
-    {
+{
     gb_keys &= (0x01 << key) ^ 0xFF;
     UpdateP1();
     //R_IF |= CONTROL_INTR;
-    }
+}
 
 // SOUND ////////////////////////////
 // 
 
 // GAMEBOY //////////////////////////
 void LoadROM(u8* rom, u32 size, u8* save, u32 save_size)
-    {
+{
     ROM         = rom;
     ROM_SIZE    = size;
     CRAM        = save;
@@ -2365,16 +2368,16 @@ void LoadROM(u8* rom, u32 size, u8* save, u32 save_size)
     if (rom_banks == 0) rom_banks = 0xFF;
 
     PowerUp();
-    }
+}
 
 u32 GetSaveSize(u8* rom)
-    {
+{
     u32 ram_sizes[] = {0x00, 0x800, 0x2000, 0x8000, 0x20000};
     return ram_sizes[rom[ROM_RAM_SIZE]];
-    }
+}
 
 void PowerUp()
-    {
+{
     u32 i; u8 x; u8 y;
     // GB
     gb_halt = 0;
@@ -2405,13 +2408,13 @@ void PowerUp()
     SP  = 0xFFFE;
 
     if (gb_bios_enable)
-        {
+    {
         PC = 0x0000;
-        }
+    }
     else
-        {
+    {
         PC = 0x0100;
-        }
+    }
     
     // timer
     cpu_count   = 0x0000;
@@ -2480,7 +2483,7 @@ void PowerUp()
 
     // Clear VRAM
     for (i = 0; i < VRAM_SIZE; i++)
-        {
+    {
         VRAM[i] = 0;
-        }
     }
+}

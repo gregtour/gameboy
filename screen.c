@@ -24,19 +24,19 @@ extern u8 R_LYC;
 extern u8 R_LCDC;
 
 void SetFrameSkip(u8 f)
-    {
+{
     gb_frameskip = f;
     gb_framecount = 0;
-    }
+}
 
 void LCDStart()
-    {
+{
     if (gb_frameskip)
-        {
+    {
         gb_framecount = (gb_framecount + 1) % gb_frameskip;
         if (gb_framecount)
             return;
-        }
+    }
 
     WY = R_WY;
     WYC = 0;
@@ -46,32 +46,32 @@ void LCDStart()
         memset(cgb_fb, 0x00, LCD_WIDTH * LCD_HEIGHT * 2);
     else
         memset(gb_fb, 0x00, LCD_WIDTH * LCD_HEIGHT);
-    }
+}
 
 void LCDDrawLineDebug()
-    {
+{
     u8 py = R_LY % 8;
     u8 row = R_LY / 8;
     u8 x, px;
     for (x = 0; x < LCD_WIDTH; x += 8)
-        {
+    {
         u8 t1 = VRAM[VRAM_TILES_1 + (row*20 + x/8) * 0x10 + 2*py];
         u8 t2 = VRAM[VRAM_TILES_1 + (row*20 + x/8) * 0x10 + 2*py + 1];
         for (px = 7; px >= 0; px--)
-            {
+        {
             u8 c = (t1 & 1) | ((t2 & 1) << 1);
             if (R_LY < LCD_HEIGHT && (x+px) < LCD_WIDTH)
-                {
+            {
                 gb_fb[R_LY][x+px] = c;
-                }
+            }
             t1 >>= 1;
             t2 >>= 1;
-            }
         }
     }
+}
 
 void LCDDrawLine()
-    {
+{
     // skip frames on frameskip
     if (gb_framecount)
         return;
@@ -82,13 +82,13 @@ void LCDDrawLine()
         LCDDrawLineColor();
     else
         LCDDrawLineMono();
-    }
+}
 
 u8 BX;
 u8 BY;
 u8 SX[LCD_WIDTH];
 void LCDDrawLineMono()
-    {
+{
     u16 bg_line;
     u16 win_line;
     u16 tile;
@@ -96,19 +96,19 @@ void LCDDrawLineMono()
     u8  count = 0;
 
     if (R_LCDC & LCDC_BG_ENABLE)
-        {
+    {
         BY = R_LY + R_SCY;
         bg_line = (R_LCDC & LCDC_BG_MAP) ? VRAM_BMAP_2 : VRAM_BMAP_1;
         bg_line += (BY >> 3) * 0x20;
-        }
+    }
     else
         bg_line = 0;
 
     if (R_LCDC & LCDC_WINDOW_ENABLE && R_LY >= WY && R_WX <= 166)
-        {
+    {
         win_line = (R_LCDC & LCDC_WINDOW_MAP) ? VRAM_BMAP_2 : VRAM_BMAP_1;
         win_line += (WYC >> 3) * 0x20;
-        }
+    }
     else
         win_line = 0;
 
@@ -116,7 +116,7 @@ void LCDDrawLineMono()
 
     // draw background
     if (bg_line)
-        {
+    {
         u8 px, py, idx;
 
         X = LCD_WIDTH - 1;
@@ -136,10 +136,10 @@ void LCDDrawLineMono()
         t1 = VRAM[tile] >> px;
         t2 = VRAM[tile+1] >> px;
         for (; X != 0xFF; X--)
-            {
+        {
             SX[X] = 0xFE;
             if (px == 8)
-                {
+            {
                 // fetch next tile
                 px = 0;
                 BX = X + R_SCX;
@@ -151,22 +151,22 @@ void LCDDrawLineMono()
                 tile += 2*py;
                 t1 = VRAM[tile];
                 t2 = VRAM[tile+1];
-                }
+            }
             // copy background
             c = (t1 & 0x1) | ((t2 & 0x1) << 1);
             if (R_LY < LCD_HEIGHT && X < LCD_WIDTH)
-                {
+            {
                 gb_fb[R_LY][X] = c;// BGP[c];
-                }
+            }
             t1 = t1 >> 1;
             t2 = t2 >> 1;
             px++;
-            }
         }
+    }
 
     // draw window
     if (win_line)
-        {
+    {
         u8 px, py, idx;
         u8 end;
 
@@ -190,10 +190,10 @@ void LCDDrawLineMono()
         // loop & copy window
         end = (R_WX < 7 ? 0 : R_WX - 7) - 1;
         for (; X != end; X--)
-            {
+        {
             SX[X] = 0xFE;
             if (px == 8)
-                {
+            {
                 // fetch next tile
                 px = 0;
                 WX = X - R_WX + 7;
@@ -205,27 +205,27 @@ void LCDDrawLineMono()
                 tile += 2*py;
                 t1 = VRAM[tile];
                 t2 = VRAM[tile+1];
-                }
+            }
             // copy window
             c = (t1 & 0x1) | ((t2 & 0x1) << 1);
             if (R_LY < LCD_HEIGHT && X < LCD_WIDTH)
-                {
+            {
                 gb_fb[R_LY][X] = c; //BGP[c];
-                }
+            }
             t1 = t1 >> 1;
             t2 = t2 >> 1;
             px++;
-            }
-        WYC++; // advance window line
         }
+        WYC++; // advance window line
+    }
 
     // draw sprites
     if (R_LCDC & LCDC_OBJ_ENABLE)
-        {
+    {
         u8 s;
         for (s = NUM_SPRITES - 1; s != 0xFF; s--)
         //for (u8 s = 0; s < NUM_SPRITES && count < MAX_SPRITES_LINE; s++)
-            {
+        {
             u8 OY = OAM[4*s + 0];
             u8 OX = OAM[4*s + 1];
             u8 OT = OAM[4*s + 2] & (R_LCDC & LCDC_OBJ_SIZE ? 0xFE : 0xFF);
@@ -233,7 +233,7 @@ void LCDDrawLineMono()
 
             // sprite is on this line
             if (R_LY + (R_LCDC & LCDC_OBJ_SIZE ? 0 : 8) < OY && R_LY + 16 >= OY)
-                {
+            {
                 u8 dir, start, end, shift;
                 u8 py;
 
@@ -252,54 +252,54 @@ void LCDDrawLineMono()
 
                 // handle x flip
                 if (OF & OBJ_FLIP_X)
-                    {
+                {
                     dir = 1;
                     start = (OX < 8 ? 0 : OX - 8);
                     end = MIN(OX, LCD_WIDTH);
                     shift = 8 - OX + start;
-                    }
+                }
                 else
-                    {
+                {
                     dir = -1;
                     start = MIN(OX, LCD_WIDTH) - 1;
                     end = (OX < 8 ? 0 : OX - 8) - 1;
                     shift = OX - (start + 1);
-                    }
+                }
 
                 // copy tile
                 t1 >>= shift;
                 t2 >>= shift;
                 for (X = start; X != end; X += dir)
-                    {
+                {
                     c = (t1 & 0x1) | ((t2 & 0x1) << 1);
                     // check transparency / sprite overlap / background overlap
                     if (c && OX <= SX[X] &&
                         !((OF & OBJ_PRIORITY) && 
                         (R_LY < LCD_HEIGHT && X < LCD_WIDTH && 
                         (gb_fb[R_LY][X] & 0x3) && SX[X] == 0xFE)))
-                        {
+                    {
                         SX[X] = OX;
                         gb_fb[R_LY][X] = (OF & OBJ_PALETTE) ? OBJP[c + 4] : OBJP[c];
-                        }
+                    }
                     t1 = t1 >> 1;
                     t2 = t2 >> 1;
-                    }
                 }
             }
         }
+    }
 
         if (R_LY < LCD_HEIGHT)
-            {
+        {
             for (X = 0; X < LCD_WIDTH; X++)
                 if (SX[X] == 0xFE)
                     gb_fb[R_LY][X] = BGP[gb_fb[R_LY][X]];
-            }
-    }
+        }
+}
 
 
 // color
 void LCDDrawLineColor()
-    {
+{
 #ifdef GB_COLOR_SUPPORT
     u16 bg_line;
     u16 win_line;
@@ -309,19 +309,19 @@ void LCDDrawLineColor()
 
     //if (R_LCDC & LCDC_BG_ENABLE)
     if (1)
-        {
+    {
         BY = R_LY + R_SCY;
         bg_line = (R_LCDC & LCDC_BG_MAP) ? VRAM_BMAP_2 : VRAM_BMAP_1;
         bg_line += (BY >> 3) * 0x20;
-        }
+    }
     else
         bg_line = 0;
 
     if (R_LCDC & LCDC_WINDOW_ENABLE && R_LY >= WY && R_WX <= 166)
-        {
+    {
         win_line = (R_LCDC & LCDC_WINDOW_MAP) ? VRAM_BMAP_2 : VRAM_BMAP_1;
         win_line += (WYC >> 3) * 0x20;
-        }
+    }
     else
         win_line = 0;
 
@@ -330,7 +330,7 @@ void LCDDrawLineColor()
 
     // draw background
     if (bg_line)
-        {
+    {
         X = LCD_WIDTH - 1;
         BX = X + R_SCX;
 
@@ -355,7 +355,7 @@ void LCDDrawLineColor()
         t1 = VRAM[tile];
         t2 = VRAM[tile+1];
         if (attr & BMAP_FLIP_X)
-            {
+        {
             t1 = (t1 & 0x01) << 7 | (t1 & 0x02) << 5 |
                 (t1 & 0x04) << 3 | (t1 & 0x08) << 1 |
                 (t1 & 0x10) >> 1 | (t1 & 0x20) >> 3 |
@@ -364,14 +364,14 @@ void LCDDrawLineColor()
                 (t2 & 0x04) << 3 | (t2 & 0x08) << 1 |
                 (t2 & 0x10) >> 1 | (t2 & 0x20) >> 3 |
                 (t2 & 0x40) >> 5 | (t2 & 0x80) >> 7;
-            }
+        }
         t1 >>= px;
         t2 >>= px;
 
         for (; X != 0xFF; X--)
-            {
+        {
             if (px == 8)
-                {
+            {
                 // fetch next tile
                 px = 0;
                 BX = X + R_SCX;
@@ -392,7 +392,7 @@ void LCDDrawLineColor()
                 t1 = VRAM[tile];
                 t2 = VRAM[tile+1];
                 if (attr & BMAP_FLIP_X)
-                    {
+                {
                     t1 = (t1 & 0x01) << 7 | (t1 & 0x02) << 5 |
                         (t1 & 0x04) << 3 | (t1 & 0x08) << 1 |
                         (t1 & 0x10) >> 1 | (t1 & 0x20) >> 3 |
@@ -401,8 +401,8 @@ void LCDDrawLineColor()
                         (t2 & 0x04) << 3 | (t2 & 0x08) << 1 |
                         (t2 & 0x10) >> 1 | (t2 & 0x20) >> 3 |
                         (t2 & 0x40) >> 5 | (t2 & 0x80) >> 7;
-                    }
                 }
+            }
             // copy background
             c = (t1 & 0x1) | ((t2 & 0x1) << 1);
             SX[X] = c | (attr & BMAP_PRIORITY);
@@ -410,12 +410,12 @@ void LCDDrawLineColor()
             t1 = t1 >> 1;
             t2 = t2 >> 1;
             px++;
-            }
         }
+    }
 
     // draw window
     if (win_line)
-        {
+    {
         X = LCD_WIDTH - 1;
         WX = X - R_WX + 7;
 
@@ -440,7 +440,7 @@ void LCDDrawLineColor()
         t1 = VRAM[tile];
         t2 = VRAM[tile+1];
         if (attr & BMAP_FLIP_X)
-            {
+        {
             t1 = (t1 & 0x01) << 7 | (t1 & 0x02) << 5 |
                 (t1 & 0x04) << 3 | (t1 & 0x08) << 1 |
                 (t1 & 0x10) >> 1 | (t1 & 0x20) >> 3 |
@@ -449,16 +449,16 @@ void LCDDrawLineColor()
                 (t2 & 0x04) << 3 | (t2 & 0x08) << 1 |
                 (t2 & 0x10) >> 1 | (t2 & 0x20) >> 3 |
                 (t2 & 0x40) >> 5 | (t2 & 0x80) >> 7;
-            }
+        }
         t1 >>= px;
         t2 >>= px;
 
         // loop & copy window
         u8 end = (R_WX < 7 ? 0 : R_WX - 7) - 1;
         for (; X != end; X--)
-            {
+        {
             if (px == 8)
-                {
+            {
                 // fetch next tile
                 px = 0;
                 WX = X - R_WX + 7;
@@ -479,7 +479,7 @@ void LCDDrawLineColor()
                 t1 = VRAM[tile];
                 t2 = VRAM[tile+1];
                 if (attr & BMAP_FLIP_X)
-                    {
+                {
                     t1 = (t1 & 0x01) << 7 | (t1 & 0x02) << 5 |
                         (t1 & 0x04) << 3 | (t1 & 0x08) << 1 |
                         (t1 & 0x10) >> 1 | (t1 & 0x20) >> 3 |
@@ -488,8 +488,8 @@ void LCDDrawLineColor()
                         (t2 & 0x04) << 3 | (t2 & 0x08) << 1 |
                         (t2 & 0x10) >> 1 | (t2 & 0x20) >> 3 |
                         (t2 & 0x40) >> 5 | (t2 & 0x80) >> 7;
-                    }
                 }
+            }
             // copy window
             c = (t1 & 0x1) | ((t2 & 0x1) << 1);
             SX[X] = c | 0x04 | (attr & BMAP_PRIORITY);
@@ -497,16 +497,16 @@ void LCDDrawLineColor()
             t1 = t1 >> 1;
             t2 = t2 >> 1;
             px++;
-            }
-        WYC++; // advance window line
         }
+        WYC++; // advance window line
+    }
 
     // draw sprites
     if (R_LCDC & LCDC_OBJ_ENABLE)
-        {
+    {
         for (u8 s = NUM_SPRITES - 1; s != 0xFF; s--)
         //for (u8 s = 0; s < NUM_SPRITES && count < MAX_SPRITES_LINE; s++)
-            {
+        {
             u8 OY = OAM[4*s + 0];
             u8 OX = OAM[4*s + 1];
             u8 OT = OAM[4*s + 2] & (R_LCDC & LCDC_OBJ_SIZE ? 0xFE : 0xFF);
@@ -514,7 +514,7 @@ void LCDDrawLineColor()
 
             // sprite is on this line
             if (R_LY + (R_LCDC & LCDC_OBJ_SIZE ? 0 : 8) < OY && R_LY + 16 >= OY)
-                {
+            {
                 count++;
                 if (OX == 0 || OX >= 168)
                     continue;   // but not visible
@@ -533,40 +533,40 @@ void LCDDrawLineColor()
                 // handle x flip
                 u8 dir, start, end, shift;
                 if (OF & OBJ_FLIP_X)
-                    {
+                {
                     dir = 1;
                     start = (OX < 8 ? 0 : OX - 8);
                     end = MIN(OX, LCD_WIDTH);
                     shift = 8 - OX + start;
-                    }
+                }
                 else
-                    {
+                {
                     dir = -1;
                     start = MIN(OX, LCD_WIDTH) - 1;
                     end = (OX < 8 ? 0 : OX - 8) - 1;
                     shift = OX - (start + 1);
-                    }
+                }
 
                 // copy tile
                 t1 >>= shift;
                 t2 >>= shift;
                 for (X = start; X != end; X += dir)
-                    {
+                {
                     c = (t1 & 0x1) | ((t2 & 0x1) << 1);
                     // check transparency / bg overlap / master bg priority / sprite priority and bg priority
                     if (c &&
                         ((SX[X] & 0x7) == 0 ||
                             (R_LCDC & 0x1) == 0 ||
                                 ((OF & OBJ_PRIORITY) == 0 && (SX[X] & BMAP_PRIORITY) == 0)))
-                        {
+                    {
                         cgb_fb[R_LY][X] = OCPD[4*(OF & OBJ_CPALETTE) + c];
                         SX[X] = 0;
-                        }
+                    }
                     t1 = t1 >> 1;
                     t2 = t2 >> 1;
-                    }
                 }
             }
         }
-#endif
     }
+#endif
+}
