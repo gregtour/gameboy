@@ -150,8 +150,7 @@ u8 READ(u16 addr)
             
         case 0x8:
         case 0x9:
-            return VRAM[addr - VRAM_ADDR];
-            //return VRAM[addr - VRAM_ADDR + vram_bank*VRAM_BANK_SIZE];
+            return VRAM[addr - VRAM_ADDR + vram_bank*VRAM_BANK_SIZE];
             
         case 0xA:
         case 0xB:

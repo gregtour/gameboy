@@ -62,6 +62,9 @@ void InspectorDraw(SDL_Renderer* renderer)
     PRINTR(R_A, 10, 30);    PRINTR(R_B, 130, 30);   PRINTR(R_D, 250, 30);   PRINTR(R_H, 370, 30);
     /*               */     PRINTR(R_C, 130, 50);   PRINTR(R_E, 250, 50);   PRINTR(R_L, 370, 50);
 
+    PRINTR8(PC, 370, 90);
+    PRINTR8(cpu_count, 370, 110);
+
 
     //PRINT("WRAM BANK", wram_bank, 10, 70);
     //PRINT("VRAM BANK", vram_bank, 10, 90);
@@ -104,7 +107,23 @@ void InspectorDraw(SDL_Renderer* renderer)
     PRINTR(NR51, 510, 520);
     PRINTR(NR52, 510, 540);
 
+#if 1
+    PRINTS("BCPD", 370, 144);
+    PRINTS("OCPD", 502, 144);
+    for (index = 0; index < 0x10; index++)
+    {
+        u16 value;
+        value = BCPD[index];
+        sprintf(text_temp, "%02X %04X", index, value);
+        FontPrint(renderer, text_temp, 370, 144 + (index + 1) * 20);
 
+        value = OCPD[index];
+        sprintf(text_temp, "%02X %04X", index, value);
+        FontPrint(renderer, text_temp, 502, 144 + (index + 1) * 20);
+    }
+#endif
+
+#if 0
 
     // instruction memory
     const int inst_x = 372 - 12; //370;
@@ -133,4 +152,5 @@ void InspectorDraw(SDL_Renderer* renderer)
         sprintf(text_temp, "%s%04X %02X", (stack_addr == SP) ? "> " : "  ", stack_addr, stack_value);
         FontPrint(renderer, text_temp, stack_x, stack_y + (index + 1) * 20);
     }
+#endif
 }

@@ -417,6 +417,18 @@ int main(int argc, char **argv)
                         StepCPU();
                     }
                 }
+                else if (event.key.keysym.sym == SDLK_g && debugger.enabled)
+                {
+                    for (int k = 0; k < 32; k++) 
+                    {
+                        //BCPD[k] = 0x11 << (k % 16) | 0x8000 >> (k/2);
+                        //OCPD[k] = ~(0x11 << (k % 16) | 0x8000 >> (k/2));
+                        u16 tint = (0x11 << (k % 16)) | (0x80 >> (2 * (k / 4)));
+                        BCPD[k] = 0xF800 ^ tint;
+                        OCPD[k] = 0x001F ^ tint;
+                    }
+
+                }
                 else if (event.key.keysym.sym == SDLK_n && debugger.paused)
                 {
                     StepCPU();
