@@ -274,6 +274,8 @@ u8 AUDIO_READ(u8 addr)
 */
 void AUDIO_WRITE(u8 addr, u8 val)
 {
+    printf("AUDIO WRITE %i %i\n", addr, val);
+
     // check audio unit power
     if (!(SO.power || addr == NR52_ADDR)) return;
 
@@ -423,8 +425,12 @@ s16 NOISE(u32 tick, u8 vol, u8 tone)
     s16 svol = vol / 0x02;
     static u32 rand_state = 0xF390439F;
     rand_state = 137 * rand_state + ((rand_state / 0x08) | (rand_state << 0x18)) + 1;
-
+#ifdef HARD_NOISE
     return svol * ((rand_state % 2) ? 0x40 : -0x40);
+#endif
+#ifdef SOFT_NOISE
+    return svol * (rand_state % 0xA0 - 0x50);
+#endif
 }
 
 /* Process GB frequency value. */
@@ -457,20 +463,20 @@ s16 RESAMPLE(u32 tick, u32 fp_period, u8 vol, u8 duty)
     }
 #endif
 #ifdef TRIANGLE_WAVE
-        subtick = (subtick + 0x20) % 0x80;
-        if (subtick > 0x40)
-        {
-            subtick = 0x80 - subtick;
-        }
-        return svol * ((s16)subtick - 0x20);
+    subtick = (subtick + 0x20) % 0x80;
+    if (subtick > 0x40)
+    {
+        subtick = 0x80 - subtick;
+    }
+    return 2 * svol * ((s16)subtick - 0x20);
 #endif
 }
 
 
 // modify soundwave
-void GENERATE_WAVE(u16 freq, u8 vol, u8 duty)
+void GENERATE_WAVE(u16 freq, u8 vol, u8 duty, s16* last_sample)
 {
-    s16 sample;
+    s16 sample = 0;
     u32 period;
     u32 i;
     if (vol > 0)
@@ -481,10 +487,29 @@ void GENERATE_WAVE(u16 freq, u8 vol, u8 duty)
             i++, fill_idx=(fill_idx+1)%AUDIO_BUFFER_SIZE)
         {
             sample = RESAMPLE(sample_count+i, period, vol, duty);
+
+#ifdef TRIANGLE_WAVE
+            // crossing over
+            if (i < SMOOTHING_AMOUNT) 
+            {
+                // detect click
+                if (abs(sample - *last_sample) > (vol * 0x04))
+                {
+                    // smooth click
+                    sample = (
+                            sample * (i+1) + 
+                            *last_sample * (SMOOTHING_AMOUNT-i)
+                        ) / (SMOOTHING_AMOUNT + 1);
+                }
+            }
+#endif
+
             AUDIO_BUFFER_L[fill_idx] += sample;
             AUDIO_BUFFER_R[fill_idx] += sample;
         }
     }
+
+    *last_sample = sample;
 }
 
 void GENERATE_CH3(u16 freq, u8 vol)
@@ -620,8 +645,11 @@ void AudioUpdate()
         GENERATE_WAVE(
             CH1.channel.freq,
             CH1.envelope.volume,
-            CH1.duty_len.duty
+            CH1.duty_len.duty,
+            &CH1.last_sample
         );
+    } else {
+        CH1.last_sample = 0;
     }
 
     // Channel 2
@@ -642,8 +670,11 @@ void AudioUpdate()
         GENERATE_WAVE(
             CH2.channel.freq,
             CH2.envelope.volume,
-            CH2.duty_len.duty
+            CH2.duty_len.duty,
+            &CH2.last_sample
         );
+    } else {
+        CH2.last_sample = 0;
     }
 
 

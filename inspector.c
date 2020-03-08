@@ -38,6 +38,11 @@ extern u8 READ_SO_50();
 extern u8 READ_SO_51();
 extern u8 READ_SO_52();
 
+
+extern u32 cram_reads;
+extern u32 cram_writes;
+
+
 void InspectorDraw(SDL_Renderer* renderer)
 {
     SDL_Rect rectangle;
@@ -62,7 +67,7 @@ void InspectorDraw(SDL_Renderer* renderer)
     PRINTR(R_A, 10, 30);    PRINTR(R_B, 130, 30);   PRINTR(R_D, 250, 30);   PRINTR(R_H, 370, 30);
     /*               */     PRINTR(R_C, 130, 50);   PRINTR(R_E, 250, 50);   PRINTR(R_L, 370, 50);
 
-    PRINTR8(PC, 370, 90);
+    PRINTR4(PC, 370, 90);
     PRINTR8(cpu_count, 370, 110);
 
 
@@ -77,17 +82,43 @@ void InspectorDraw(SDL_Renderer* renderer)
     PRINTR(R_HDMA, 10, 110);
     PRINTR4(R_HDMAS, 150, 110);
     PRINTR4(R_HDMAD, 330, 110);
-
-    PRINTR(cram_bank, 10, 450);
-    PRINTR(wram_bank, 10, 470);
-    PRINTR(vram_bank, 10, 490);
-    PRINTR8(cpu_count, 10, 510);
-    PRINTI("MBC INFO", ROM[ROM_MBC_INFO], 10, 530); PRINTI("MBC BANKS", ROM[ROM_BANK_COUNT], 200, 530);
-    PRINTI("MBC RAM", ROM[ROM_RAM_SIZE], 10, 550);  PRINTI("ROM BANKS", rom_banks, 200, 550);
 #endif
 
-    PRINTR(vram_bank, 10, 90);
-    PRINTI("TILE SELECT", (R_LCDC & LCDC_TILE_SELECT), 10, 110);
+    // Display MBC info
+#if 0
+    PRINTR(gb_mbc, 10, 460);
+    PRINTR(cram_bank, 10, 480); PRINTR(cram_enable, 210, 480);
+    PRINTR(cram_banks, 10, 500); PRINTR(rom_bank, 210, 500);
+    PRINTR8(cram_reads, 10, 520); 
+    PRINTR8(cram_writes, 10, 540);
+
+    //PRINTI("MBC INFO", ROM[ROM_MBC_INFO], 10, 530); PRINTI("MBC BANKS", ROM[ROM_BANK_COUNT], 200, 530);
+    //PRINTI("MBC RAM", ROM[ROM_RAM_SIZE], 10, 550);  PRINTI("ROM BANKS", rom_banks, 200, 550);
+#endif 
+
+//    PRINTR(vram_bank, 10, 90);
+//    PRINTI("TILE SELECT", (R_LCDC & LCDC_TILE_SELECT), 10, 110);
+
+#if 1 // display sound channel 1
+    PRINTI("CH1 CH EN", CH1.channel.enable, 10, 480);
+    PRINTI("CH1 CH COUNT", CH1.channel.counterset, 10, 500);
+    PRINTI("CH1 CH TIMER", CH1.channel.timer, 10, 520);
+    PRINTI("CH1 CH INIT", CH1.channel.initset, 10, 540);
+    PRINT4("CH1 CH FREQ", CH1.channel.freq, 10, 560);
+
+    PRINTI("CH1 DISABLE", CH1.envelope.disabled, 220, 480);
+    PRINTI("CH1 VOL", CH1.envelope.volume, 220, 500);
+    PRINTI("CH1 DIR", CH1.envelope.dir, 220, 520);
+    PRINTI("CH1 PER", CH1.envelope.period, 220, 540);
+    PRINT4("CH1 TIMER", CH1.envelope.timer, 220, 560);
+
+    // PRINTI("CH1 DISABLE", CH1.envelope.disabled, 220, 480);
+    // PRINTI("CH1 VOL", CH1.envelope.volume, 220, 500);
+    // PRINTI("CH1 DIR", CH1.envelope.dir, 220, 520);
+    // PRINTI("CH1 PER", CH1.envelope.period, 220, 540);
+#endif
+
+#if 0 // display sound channel 3
 
     PRINTI("CH3 EN", CH3.enable, 220, 480);
     PRINTI("CH3 LEN", CH3.sound_len, 220, 500);
@@ -98,7 +129,9 @@ void InspectorDraw(SDL_Renderer* renderer)
     PRINTI("CH3 CH COUNT", CH3.channel.counterset, 10, 500);
     PRINTI("CH3 CH TIMER", CH3.channel.timer, 10, 520);
     PRINTI("CH3 CH INIT", CH3.channel.initset, 10, 540);
+#endif
 
+#if 0 // display sound system
     u8 NR50 = READ_SO_50();
     u8 NR51 = READ_SO_51();
     u8 NR52 = READ_SO_52();
@@ -106,8 +139,10 @@ void InspectorDraw(SDL_Renderer* renderer)
     PRINTR(NR50, 510, 500);
     PRINTR(NR51, 510, 520);
     PRINTR(NR52, 510, 540);
+#endif 
 
-#if 1
+// Display palette registers
+#if 0
     PRINTS("BCPD", 370, 144);
     PRINTS("OCPD", 502, 144);
     for (index = 0; index < 0x10; index++)
@@ -123,8 +158,8 @@ void InspectorDraw(SDL_Renderer* renderer)
     }
 #endif
 
-#if 0
-
+// Display stack and instructions
+#if 1
     // instruction memory
     const int inst_x = 372 - 12; //370;
     const int inst_y = 144;

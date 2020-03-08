@@ -64,6 +64,9 @@ u8 gb_frame = 0;
 u8 gb_rtc[5];
 u8 lcd_mode = 0;
 
+u32 cram_reads = 0;
+u32 cram_writes = 0;
+
 // CGB
 u8 cgb_enable = 1;
 u8 cgb_double = 0;
@@ -144,9 +147,13 @@ u8 READ(u16 addr)
         case 0x6:
         case 0x7:
             if (gb_mbc == 1 && cram_mode)
+            {
                 return ROM[addr + ((rom_bank & 0x1F) - 1)*ROM_BANK_SIZE];
+            }
             else
+            {
                 return ROM[addr + (rom_bank-1)*ROM_BANK_SIZE];
+            }
             
         case 0x8:
         case 0x9:
@@ -156,12 +163,22 @@ u8 READ(u16 addr)
         case 0xB:
             if (gb_cram && cram_enable)
             {
+                cram_reads++;
+
                 if (gb_mbc == 3 && cram_bank >= 0x08)
+                {
                     return gb_rtc[cram_bank - 0x08];
+                }
                 else if ((cram_mode || gb_mbc != 1) && cram_bank < cram_banks)
+                {
                     return CRAM[addr - CART_RAM_ADDR + cram_bank*CRAM_BANK_SIZE];
+                }
                 else
+                {
                     return CRAM[addr - CART_RAM_ADDR];
+                }
+            } else {
+                printf("INVALID CRAM READ\n");
             }
             return 0;
         
@@ -276,10 +293,14 @@ void WRITE(u16 addr, u8 val)
     {
         case 0x0:
         case 0x1:
-            if (gb_mbc == 2 && addr & 0x10)
-                return;
+            if (gb_mbc == 2)
+            {
+                cram_enable = (addr & 0x10) ? 1 : 0;
+            }
             else if (gb_mbc > 0 && gb_cram)
+            {
                 cram_enable = ((val & 0x0F) == 0x0A);
+            }
             return;
             
         case 0x2:
@@ -287,7 +308,6 @@ void WRITE(u16 addr, u8 val)
             {
                 rom_bank = (rom_bank & 0x100) | val;
                 rom_bank = rom_bank % (rom_banks ? rom_banks : 1);
-                printf("ROM BANK %i\n", rom_bank);
                 return;
             }
         case 0x3:
@@ -296,24 +316,33 @@ void WRITE(u16 addr, u8 val)
                 //rom_bank = val & 0x7;
                 rom_bank = (val & 0x1F) | (rom_bank & 0x60);
                 if ((rom_bank & 0x1F) == 0x00)
+                {
+                    printf("MBC1: ROM BANK 0\n");
                     rom_bank++;
+                }
             }
             else if (gb_mbc == 2 && addr & 0x10)
             {
                 rom_bank = val & 0x0F;
                 if (!rom_bank) 
+                {
                     rom_bank++;
+                }
             }
             else if (gb_mbc == 3)
             {
                 rom_bank = val & 0x7F;
                 if (!rom_bank) 
+                {
+                    printf("MBC3: ROM BANK 0\n");
                     rom_bank++;
+                }
             }
             else if (gb_mbc == 5)
+            {
                 rom_bank = (val & 0x01) << 8 | (rom_bank & 0xFF);
-            rom_bank = rom_bank % (rom_banks ? rom_banks : 1);
-            printf("ROM BANK %i\n", rom_bank);
+            }
+            // rom_bank = rom_bank % (rom_banks ? rom_banks : 1);
             return;
             
         case 0x4:
@@ -325,15 +354,18 @@ void WRITE(u16 addr, u8 val)
                 rom_bank = rom_bank % (rom_banks ? rom_banks : 1);
             }
             else if (gb_mbc == 3)
+            {
                 cram_bank = val;
+            }
             else if (gb_mbc == 5)
+            {
                 cram_bank = (val & 0x0F);
+            }
             printf("CRAM BANK %i\n", cram_bank);
             return;
             
         case 0x6:
         case 0x7:
-            //if (gb_mbc == 1 && gb_cram)
             cram_mode = (val & 1);
             return;
             
@@ -346,13 +378,22 @@ void WRITE(u16 addr, u8 val)
         case 0xB:
             if (gb_cram && cram_enable)
             {
+                cram_writes++;
+
                 if (gb_mbc == 3 && cram_bank >= 0x08)
+                {
                     gb_rtc[cram_bank - 0x08] = val;
-                //else if ((cram_mode || gb_mbc != 1) && cram_bank < cram_banks)
+                }
                 else if (cram_mode && cram_bank < cram_banks)
+                {
                     CRAM[addr - CART_RAM_ADDR + cram_bank*CRAM_BANK_SIZE] = val;
+                }
                 else
+                {
                     CRAM[addr - CART_RAM_ADDR] = val;
+                }
+            } else {
+                printf("INVALID CRAM WRITE\n");
             }
             return;
         
@@ -433,7 +474,7 @@ void WRITE(u16 addr, u8 val)
                 // DMA Register
                 case 0x46: 
                 {
-                    printf("DMA\n");
+                    //printf("DMA\n");
                     u8 offset;
                     R_DMA = (val % 0xF1);
                     for (offset = 0; offset < OAM_SIZE; offset++)
@@ -486,27 +527,27 @@ void WRITE(u16 addr, u8 val)
 
                 // CGB HDMA
                 case 0x51:
-                    printf("HDMA\n");
+                    //printf("HDMA\n");
                     if (cgb_enable && (R_HDMA & HDMA_OFF))
                         R_HDMAS = (val << 8) | (R_HDMAS & 0x00F0);
                     return;
                 case 0x52:
-                    printf("HDMA\n");
+                    //printf("HDMA\n");
                     if (cgb_enable && (R_HDMA & HDMA_OFF))
                         R_HDMAS = (R_HDMAS & 0xFF00) | (val & 0x00F0);
                     return;
                 case 0x53:
-                    printf("HDMA\n");
+                    //printf("HDMA\n");
                     if (cgb_enable && (R_HDMA & HDMA_OFF))
                         R_HDMAD = 0x8000 | ((val << 8) & 0x1F00) | (R_HDMAD & 0x00F0);
                     return;
                 case 0x54:
-                    printf("HDMA\n");
+                    //printf("HDMA\n");
                     if (cgb_enable && (R_HDMA & HDMA_OFF))
                         R_HDMAD = 0x8000 | (R_HDMAD & 0x1F00) | (val & 0x00F0);
                     return;  
                 case 0x55:
-                    printf("HDMA\n");
+                    //printf("HDMA\n");
                     if (val & HDMA_HBLANK)
                     {
                         // set length to copy
@@ -2366,12 +2407,22 @@ void LoadROM(u8* rom, u32 size, u8* save, u32 save_size)
 
     if (rom_banks == 0) rom_banks = 0xFF;
 
+#ifdef EMULATE_MBC5
+    gb_mbc = 5;
+#endif
+
     PowerUp();
 }
 
 u32 GetSaveSize(u8* rom)
 {
     u32 ram_sizes[] = {0x00, 0x800, 0x2000, 0x8000, 0x20000};
+#ifndef EMULATE_MBC5
+    gb_mbc = CART_MBC[rom[ROM_MBC_INFO]];
+    if (gb_mbc == 2) {
+        return 512 * 4;
+    }
+#endif
     return ram_sizes[rom[ROM_RAM_SIZE]];
 }
 

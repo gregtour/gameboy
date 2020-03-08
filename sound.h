@@ -7,6 +7,10 @@
 
 #define SQUARE_WAVE
 //#define TRIANGLE_WAVE
+#define SMOOTHING_AMOUNT    7
+
+#define HARD_NOISE
+//#define SOFT_NOISE
 
 // Platform sound configuration
 #define SAMPLING_RATE       48000
@@ -164,6 +168,7 @@ typedef struct {
     DUTY_LEN    duty_len;   /* NR11 */
     ENVELOPE    envelope;    /* NR12 */
     CHANNEL     channel;    /* NR13, NR14 */
+    s16         last_sample; /* smoothing filter */
 } CH1_t;
 
 // Audio Channel 2 - Square Wave 2
@@ -172,6 +177,7 @@ typedef struct {
     DUTY_LEN    duty_len;   /* NR21 */
     ENVELOPE    envelope;    /* NR22 */
     CHANNEL     channel;    /* NR23, NR24 */
+    s16         last_sample; /* smoothing filter */
 } CH2_t;
 
 // Audio Channel 3 - DAC

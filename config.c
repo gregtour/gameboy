@@ -42,4 +42,12 @@ u32 BUTTONS[] =
     SDL_CONTROLLER_BUTTON_START ,
 };
 
+// gameboy color conversion
+u32 ColorTo32(u16 cgb)
+{
+    u8 r = (cgb & 0x001F) << 3;
+    u8 g = ((cgb >>  5) & 0x001F) << 3;
+    u8 b = ((cgb >> 10) & 0x001F) << 3;
 
+    return 0xFF000000 | (r << 16) | (g << 8) | b;
+}

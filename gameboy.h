@@ -7,6 +7,9 @@
 
 #include <stdint.h>
 
+//#define 	EMULATE_MBC5
+//#define 	EMULATE_RTC
+
 //#define CPU_CLOCKSPEED        0x400000
 #define CPU_CLOCKSPEED      4000000
 
